@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { relations } from "drizzle-orm";
 import { z } from "zod";
 
 // Users table for authentication
@@ -140,6 +141,103 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Define relations for foreign keys
+export const tenantsRelations = relations(tenants, ({ many }) => ({
+  users: many(users),
+  agents: many(agents),
+  workflows: many(workflows),
+  knowledgeBase: many(knowledgeBase),
+  callLogs: many(callLogs),
+  chatLogs: many(chatLogs),
+  webhooks: many(webhooks),
+  webhookLogs: many(webhookLogs),
+  apiKeys: many(apiKeys),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [users.tenantId],
+    references: [tenants.id],
+  }),
+  editedAgents: many(agents),
+}));
+
+export const agentsRelations = relations(agents, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [agents.tenantId],
+    references: [tenants.id],
+  }),
+  editedBy: one(users, {
+    fields: [agents.editedBy],
+    references: [users.id],
+  }),
+  callLogs: many(callLogs),
+  chatLogs: many(chatLogs),
+}));
+
+export const workflowsRelations = relations(workflows, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [workflows.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const knowledgeBaseRelations = relations(knowledgeBase, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [knowledgeBase.tenantId],
+    references: [tenants.id],
+  }),
+  parent: one(knowledgeBase, {
+    fields: [knowledgeBase.parentId],
+    references: [knowledgeBase.id],
+  }),
+  children: many(knowledgeBase),
+}));
+
+export const callLogsRelations = relations(callLogs, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [callLogs.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [callLogs.agentId],
+    references: [agents.id],
+  }),
+}));
+
+export const chatLogsRelations = relations(chatLogs, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [chatLogs.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [chatLogs.agentId],
+    references: [agents.id],
+  }),
+}));
+
+export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [webhooks.tenantId],
+    references: [tenants.id],
+  }),
+  logs: many(webhookLogs),
+}));
+
+export const webhookLogsRelations = relations(webhookLogs, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [webhookLogs.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [apiKeys.tenantId],
+    references: [tenants.id],
+  }),
+}));
 
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).pick({
