@@ -6,8 +6,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ThemeProvider } from "./lib/theme";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 import { AppSidebar } from "./components/AppSidebar";
 import { Dashboard, ViewMode } from "./pages/Dashboard";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
 
 function Router() {
@@ -15,35 +19,91 @@ function Router() {
 
   return (
     <Switch>
+      <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
+      
       <Route path="/">
-        <Dashboard currentView={currentView} onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView={currentView} onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/agents">
-        <Dashboard currentView="agents" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="agents" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/workflows">
-        <Dashboard currentView="workflows" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="workflows" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/knowledge">
-        <Dashboard currentView="knowledge" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="knowledge" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/webhooks">
-        <Dashboard currentView="webhooks" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="webhooks" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/api-keys">
-        <Dashboard currentView="api-keys" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="api-keys" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/call-logs">
-        <Dashboard currentView="call-logs" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="call-logs" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/chat-logs">
-        <Dashboard currentView="chat-logs" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="chat-logs" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
       <Route path="/webhook-logs">
-        <Dashboard currentView="webhook-logs" onViewChange={setCurrentView} />
+        <ProtectedRoute>
+          <MainApp>
+            <Dashboard currentView="webhook-logs" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
       </Route>
+      
       <Route component={NotFound} />
     </Switch>
+  );
+}
+
+function MainApp({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-screen w-full bg-background">
+      <AppSidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="p-2 border-b bg-card/30 backdrop-blur">
+          <SidebarTrigger data-testid="button-sidebar-toggle" className="hover-elevate" />
+        </div>
+        <main className="flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 }
 
@@ -58,20 +118,12 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <ThemeProvider>
-          <SidebarProvider style={style as React.CSSProperties}>
-            <div className="flex h-screen w-full bg-background">
-              <AppSidebar />
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <div className="p-2 border-b bg-card/30 backdrop-blur">
-                  <SidebarTrigger data-testid="button-sidebar-toggle" className="hover-elevate" />
-                </div>
-                <main className="flex-1 overflow-hidden">
-                  <Router />
-                </main>
-              </div>
-            </div>
-          </SidebarProvider>
-          <Toaster />
+          <AuthProvider>
+            <SidebarProvider style={style as React.CSSProperties}>
+              <Router />
+            </SidebarProvider>
+            <Toaster />
+          </AuthProvider>
         </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>

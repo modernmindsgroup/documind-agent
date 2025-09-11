@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Bell, User, LogOut, Settings } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   mockDashboardMetrics, 
   mockRecentActivity, 
@@ -36,6 +37,12 @@ interface DashboardProps {
 }
 
 export function Dashboard({ currentView, onViewChange }: DashboardProps) {
+  const { user, logout } = useAuth();
+  
+  const getTenantName = () => {
+    // For now, we'll show tenant ID until we fetch tenant data
+    return user?.tenantId?.substring(0, 8) || 'Unknown';
+  };
   const renderContent = () => {
     switch (currentView) {
       case 'agents':
@@ -121,7 +128,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-xs">
-              Tenant: Acme Corp
+              {user?.role === 'super_admin' ? 'Super Admin' : `Tenant: ${getTenantName()}`}
             </Badge>
           </div>
         </div>
@@ -156,9 +163,9 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">Sarah Chen</p>
+                  <p className="text-sm font-medium leading-none">{user?.username}</p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    sarah@acmecorp.com
+                    {user?.email}
                   </p>
                 </div>
               </DropdownMenuLabel>
@@ -168,7 +175,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
                 <span>Settings</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem data-testid="menu-logout">
+              <DropdownMenuItem onClick={logout} data-testid="menu-logout">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Log out</span>
               </DropdownMenuItem>
