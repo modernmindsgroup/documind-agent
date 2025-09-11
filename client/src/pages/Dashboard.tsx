@@ -104,7 +104,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
         return (
           <div className="space-y-8">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to AI Agent Dashboard</h1>
+              <h1 className="text-3xl font-bold text-foreground mb-2">Welcome Martin</h1>
               <p className="text-muted-foreground">
                 Manage your voice and chat AI agents, workflows, and monitoring all in one place.
               </p>

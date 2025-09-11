@@ -432,19 +432,7 @@ export class DatabaseStorage implements IStorage {
     monthlyCallCost: number;
     monthlyCallMinutes: number;
   }> {
-    // For demo purposes, return realistic sample data
-    // This makes the dashboard look engaging with meaningful metrics
-    return {
-      totalAgents: 3,
-      totalWorkflows: 4,
-      totalCalls: 80,
-      totalChats: 59,
-      monthlyCallCost: 2450, // $24.50 in cents
-      monthlyCallMinutes: 1840, // 30h 40m in minutes
-    };
-
-    // TODO: Uncomment this section to use real database data instead of demo data
-    /*
+    // Use real database data instead of demo data
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -455,20 +443,20 @@ export class DatabaseStorage implements IStorage {
       chatsCount,
       monthlyCalls
     ] = await Promise.all([
-      db.select({ count: count() }).from(agents).where(eq(agents.tenantId, tenantId)),
-      db.select({ count: count() }).from(workflows).where(eq(workflows.tenantId, tenantId)),
-      db.select({ count: count() }).from(callLogs).where(eq(callLogs.tenantId, tenantId)),
-      db.select({ count: count() }).from(chatLogs).where(eq(chatLogs.tenantId, tenantId)),
+      db.select({ count: sql<number>`count(*)` }).from(agents).where(eq(agents.tenantId, tenantId)),
+      db.select({ count: sql<number>`count(*)` }).from(workflows).where(eq(workflows.tenantId, tenantId)),
+      db.select({ count: sql<number>`count(*)` }).from(callLogs).where(eq(callLogs.tenantId, tenantId)),
+      db.select({ count: sql<number>`count(*)` }).from(chatLogs).where(eq(chatLogs.tenantId, tenantId)),
       db.select().from(callLogs).where(
         and(
           eq(callLogs.tenantId, tenantId),
-          // gte(callLogs.startTime, firstDayOfMonth) // TODO: Add date filtering
+          gte(callLogs.startTime, firstDayOfMonth)
         )
       )
     ]);
 
     const monthlyCallCost = monthlyCalls.reduce((sum, call) => sum + (call.cost || 0), 0);
-    const monthlyCallMinutes = monthlyCalls.reduce((sum, call) => sum + (call.duration || 0), 0);
+    const monthlyCallMinutes = Math.floor(monthlyCalls.reduce((sum, call) => sum + (call.duration || 0), 0) / 60);
 
     return {
       totalAgents: Number(agentsCount[0]?.count || 0),
@@ -478,7 +466,7 @@ export class DatabaseStorage implements IStorage {
       monthlyCallCost,
       monthlyCallMinutes
     };
-    */
+
   }
 
   // Agent-specific stats and activity methods
@@ -516,14 +504,14 @@ export class DatabaseStorage implements IStorage {
     const averageDuration = stats.avgDuration || 180;
 
     // Get chat statistics for this specific agent
-    const [chatStats] = await db
+    const chatStats = await db
       .select({
         total: sql<number>`count(*)`,
       })
       .from(chatLogs)
       .where(eq(chatLogs.agentId, agentId));
 
-    const totalChats = chatStats.total || 0;
+    const totalChats = chatStats[0]?.total || 0;
 
     // Calculate weekly growth (simplified - comparing last 7 days vs previous 7 days)
     const oneWeekAgo = new Date();
