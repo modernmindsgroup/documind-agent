@@ -441,6 +441,108 @@ export class DatabaseStorage implements IStorage {
     };
     */
   }
+
+  // Agent-specific stats and activity methods
+  async getAgentStats(agentId: string): Promise<{
+    totalCalls: number;
+    successRate: number;
+    averageDuration: number; // in seconds
+    totalChats: number;
+    weeklyGrowth: number;
+  }> {
+    // For demo purposes, return realistic per-agent stats
+    // In real implementation, this would query calls/chats tables filtered by agentId
+    const baseStats = {
+      totalCalls: Math.floor(Math.random() * 500) + 100,
+      successRate: 0.9 + Math.random() * 0.09, // 90-99%
+      averageDuration: 180 + Math.floor(Math.random() * 120), // 3-5 minutes
+      totalChats: Math.floor(Math.random() * 200) + 50,
+      weeklyGrowth: (Math.random() - 0.5) * 0.3, // -15% to +15%
+    };
+    
+    return baseStats;
+  }
+
+  async getAgentActivity(agentId: string, limit: number = 10): Promise<Array<{
+    id: string;
+    type: 'call' | 'chat';
+    status: 'completed' | 'failed' | 'active';
+    phoneNumber?: string;
+    duration?: number;
+    createdAt: Date;
+  }>> {
+    // For demo purposes, return realistic activity data
+    // In real implementation, this would query calls/chats tables
+    const activities = [];
+    const now = new Date();
+    
+    for (let i = 0; i < limit; i++) {
+      const minutesAgo = Math.floor(Math.random() * 1440); // Up to 24 hours ago
+      const type: 'call' | 'chat' = Math.random() > 0.6 ? 'call' : 'chat';
+      const statuses = ['completed', 'completed', 'completed', 'failed', 'active'];
+      const status = statuses[Math.floor(Math.random() * statuses.length)] as 'completed' | 'failed' | 'active';
+      
+      activities.push({
+        id: `activity_${i}_${agentId}`,
+        type,
+        status,
+        phoneNumber: type === 'call' ? `+1 (555) ${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 9000) + 1000)}` : undefined,
+        duration: status === 'completed' ? Math.floor(Math.random() * 600) + 60 : undefined, // 1-11 minutes
+        createdAt: new Date(now.getTime() - minutesAgo * 60000),
+      });
+    }
+    
+    return activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async updateAgentStatus(agentId: string, isActive: boolean): Promise<Agent | null> {
+    // For demo purposes, update in-memory agent data
+    // In real implementation, this would update the database
+    const [updatedAgent] = await db
+      .update(agents)
+      .set({ isActive, updatedAt: new Date() })
+      .where(eq(agents.id, agentId))
+      .returning();
+    return updatedAgent || null;
+  }
+
+  async updateAgentConfiguration(agentId: string, config: {
+    llm?: {
+      provider: string;
+      model: string;
+      prompt?: string;
+      maxTokens?: number;
+      temperature?: number;
+    };
+    transcriber?: {
+      provider: string;
+      language: string;
+      model: string;
+    };
+    voice?: {
+      provider: string;
+      voice: string;
+      model: string;
+    };
+  }): Promise<Agent | null> {
+    // Update agent with new configuration
+    const updateData: Partial<Agent> = { updatedAt: new Date() };
+    
+    if (config.llm?.prompt) {
+      updateData.prompt = config.llm.prompt;
+    }
+    if (config.voice?.voice) {
+      updateData.voice = config.voice.voice;
+    }
+    
+    const [updatedAgent] = await db
+      .update(agents)
+      .set(updateData)
+      .where(eq(agents.id, agentId))
+      .returning();
+    
+    return updatedAgent || null;
+  }
 }
 
 export const storage = new DatabaseStorage();

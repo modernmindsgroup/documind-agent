@@ -137,6 +137,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Agent-specific stats routes
+  app.get('/api/agents/:id/stats', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const stats = await storage.getAgentStats(id);
+      res.json(stats);
+    } catch (error) {
+      console.error('Error fetching agent stats:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/agents/:id/activity', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const limit = parseInt(req.query.limit as string) || 10;
+      const activity = await storage.getAgentActivity(id, limit);
+      res.json(activity);
+    } catch (error) {
+      console.error('Error fetching agent activity:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.patch('/api/agents/:id/status', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ error: 'isActive must be a boolean' });
+      }
+      
+      const updatedAgent = await storage.updateAgentStatus(id, isActive);
+      
+      if (!updatedAgent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
+      res.json(updatedAgent);
+    } catch (error) {
+      console.error('Error updating agent status:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.patch('/api/agents/:id/configuration', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const config = req.body;
+      
+      const updatedAgent = await storage.updateAgentConfiguration(id, config);
+      
+      if (!updatedAgent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
+      res.json(updatedAgent);
+    } catch (error) {
+      console.error('Error updating agent configuration:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Agents routes
   app.get('/api/agents', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
