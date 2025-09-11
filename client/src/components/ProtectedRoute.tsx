@@ -13,7 +13,13 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      setLocation('/login');
+      // Double-check localStorage as fallback for race conditions
+      const storedToken = localStorage.getItem('auth_token');
+      const storedUser = localStorage.getItem('auth_user');
+      
+      if (!storedToken || !storedUser) {
+        setLocation('/login');
+      }
     }
   }, [user, isLoading, setLocation]);
 
@@ -25,7 +31,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!user) {
+  // Check both state and localStorage for authentication
+  const storedToken = localStorage.getItem('auth_token');
+  const storedUser = localStorage.getItem('auth_user');
+  
+  if (!user && (!storedToken || !storedUser)) {
     return null;
   }
 

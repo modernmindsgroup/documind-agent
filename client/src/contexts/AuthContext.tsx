@@ -79,11 +79,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const { token: newToken, user: newUser } = data;
     
+    // Update localStorage first
+    localStorage.setItem('auth_token', newToken);
+    localStorage.setItem('auth_user', JSON.stringify(newUser));
+    
+    // Update state synchronously
     setToken(newToken);
     setUser(newUser);
     
-    localStorage.setItem('auth_token', newToken);
-    localStorage.setItem('auth_user', JSON.stringify(newUser));
+    // Return the user data so Login.tsx knows the login completed successfully
+    return newUser;
   };
 
   const register = async (registerData: RegisterData) => {
