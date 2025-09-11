@@ -19,7 +19,7 @@ const loginSchema = z.object({
   password: z.string().min(6),
 });
 
-const registerSchema = insertUserSchema.extend({
+const registerSchema = insertUserSchema.omit({ tenantId: true }).extend({
   confirmPassword: z.string(),
   tenantName: z.string().min(1),
 }).refine((data) => data.password === data.confirmPassword, {
