@@ -120,7 +120,7 @@ export function AppSidebar() {
             <Bot className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="flex flex-col">
-            <span className="text-lg font-semibold text-sidebar-foreground">VoiceFlow</span>
+            <span className="text-lg font-semibold text-sidebar-foreground">EchoAgent</span>
             <span className="text-xs text-muted-foreground">Dashboard</span>
           </div>
         </div>

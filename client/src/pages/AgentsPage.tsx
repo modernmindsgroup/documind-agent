@@ -234,12 +234,12 @@ export default function AgentsPage() {
     if (!selectedAgent) return;
     
     const widgetCode = `<script>
-  window.VoiceFlowConfig = {
+  window.EchoAgentConfig = {
     agentId: "${selectedAgent.id}",
     theme: "light"
   };
 </script>
-<script src="https://cdn.voiceflow.com/widget.js"></script>`;
+<script src="https://cdn.echoagent.ai/widget.js"></script>`;
 
     try {
       await navigator.clipboard.writeText(widgetCode);
@@ -1062,12 +1062,12 @@ export default function AgentsPage() {
                         <div className="relative">
                           <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
                             <code>{`<script>
-  window.VoiceFlowConfig = {
+  window.EchoAgentConfig = {
     agentId: "${selectedAgent.id}",
     theme: "light"
   };
 </script>
-<script src="https://cdn.voiceflow.com/widget.js"></script>`}</code>
+<script src="https://cdn.echoagent.ai/widget.js"></script>`}</code>
                           </pre>
                         </div>
                         
