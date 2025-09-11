@@ -13,7 +13,7 @@ import {
   ChevronDown,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useLocation } from "wouter";
 import {
   Sidebar,
   SidebarContent,
@@ -110,7 +110,7 @@ const menuItems: SidebarItem[] = [
 ];
 
 export function AppSidebar() {
-  const [activeUrl, setActiveUrl] = useState("/");
+  const [location, setLocation] = useLocation();
 
   return (
     <Sidebar data-testid="sidebar-main">
@@ -150,15 +150,14 @@ export function AppSidebar() {
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton 
                                 asChild
-                                isActive={activeUrl === subItem.url}
+                                isActive={location === subItem.url}
                                 data-testid={`button-sidebar-${subItem.title.toLowerCase().replace(' ', '-')}`}
                               >
                                 <a 
                                   href={subItem.url}
                                   onClick={(e) => {
                                     e.preventDefault();
-                                    setActiveUrl(subItem.url);
-                                    console.log(`Navigate to ${subItem.title}`);
+                                    setLocation(subItem.url);
                                   }}
                                   className="hover-elevate"
                                 >
@@ -174,15 +173,14 @@ export function AppSidebar() {
                   ) : (
                     <SidebarMenuButton 
                       asChild
-                      isActive={activeUrl === item.url}
+                      isActive={location === item.url}
                       data-testid={`button-sidebar-${item.title.toLowerCase()}`}
                     >
                       <a 
                         href={item.url}
                         onClick={(e) => {
                           e.preventDefault();
-                          setActiveUrl(item.url);
-                          console.log(`Navigate to ${item.title}`);
+                          setLocation(item.url);
                         }}
                         className="hover-elevate"
                       >
