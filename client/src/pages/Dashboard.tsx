@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { RecentActivity } from "@/components/RecentActivity";
 import { QuickActions } from "@/components/QuickActions";
-import { AgentTemplates } from "@/components/AgentTemplates";
+import { AgentManagement } from "@/components/AgentManagement";
 import { WorkflowBuilder } from "@/components/WorkflowBuilder";
 import { CallLogs } from "@/components/CallLogs";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -53,14 +53,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
   const renderContent = () => {
     switch (currentView) {
       case 'agents':
-        return (
-          <AgentTemplates 
-            templates={mockAgentTemplates}
-            onSelectTemplate={(template) => {
-              console.log('Creating agent from template:', template.name);
-            }}
-          />
-        );
+        return <AgentManagement />;
       case 'workflows':
         return (
           <WorkflowBuilder 
