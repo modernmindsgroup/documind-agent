@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { RecentActivity } from "@/components/RecentActivity";
 import { QuickActions } from "@/components/QuickActions";
@@ -38,6 +39,12 @@ interface DashboardProps {
 
 export function Dashboard({ currentView, onViewChange }: DashboardProps) {
   const { user, logout } = useAuth();
+  
+  // Fetch real dashboard metrics
+  const { data: metrics, isLoading: metricsLoading } = useQuery({
+    queryKey: ['/api/dashboard/metrics'],
+    enabled: !!user?.tenantId,
+  });
   
   const getTenantName = () => {
     // For now, we'll show tenant ID until we fetch tenant data
@@ -110,7 +117,10 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
               </p>
             </div>
             
-            <DashboardMetrics metrics={mockDashboardMetrics} />
+            <DashboardMetrics 
+              metrics={metrics || mockDashboardMetrics} 
+              isLoading={metricsLoading} 
+            />
             
             <div className="grid gap-8 lg:grid-cols-2">
               <QuickActions />

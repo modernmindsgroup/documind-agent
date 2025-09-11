@@ -57,10 +57,27 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
+      retry: (failureCount, error) => {
+        // Don't retry on 401 errors
+        if (error?.message?.includes('401')) {
+          return false;
+        }
+        return failureCount < 3;
+      },
     },
     mutations: {
       retry: false,
     },
+  },
+});
+
+// Add global error handling for 401s to auto-logout
+queryClient.setMutationDefaults(['mutation'], {
+  onError: (error) => {
+    if (error?.message?.includes('401')) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      window.location.href = '/login';
+    }
   },
 });

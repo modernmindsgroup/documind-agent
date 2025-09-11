@@ -1,9 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Workflow, Phone, MessageSquare, DollarSign, Clock } from "lucide-react";
 import { DashboardMetrics as MetricsType } from "@/lib/types";
 
 interface DashboardMetricsProps {
   metrics: MetricsType;
+  isLoading?: boolean;
 }
 
 const metricCards = [
@@ -51,7 +53,7 @@ const metricCards = [
   },
 ];
 
-export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
+export function DashboardMetrics({ metrics, isLoading }: DashboardMetricsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {metricCards.map((card) => {
@@ -68,7 +70,11 @@ export function DashboardMetrics({ metrics }: DashboardMetricsProps) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold" data-testid={`value-${card.key}`}>
-                {card.format(value)}
+                {isLoading ? (
+                  <Skeleton className="h-8 w-20" />
+                ) : (
+                  card.format(value)
+                )}
               </div>
             </CardContent>
           </Card>
