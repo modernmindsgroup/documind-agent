@@ -4,7 +4,7 @@ import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { RecentActivity } from "@/components/RecentActivity";
 import { QuickActions } from "@/components/QuickActions";
 import AgentsPage from "@/pages/AgentsPage";
-import { WorkflowBuilder } from "@/components/WorkflowBuilder";
+import WorkflowsPage from "@/pages/WorkflowsPage";
 import { CallLogs } from "@/components/CallLogs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -55,14 +55,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
       case 'agents':
         return <AgentsPage />;
       case 'workflows':
-        return (
-          <WorkflowBuilder 
-            templates={mockWorkflowTemplates}
-            onSelectTemplate={(template) => {
-              console.log('Creating workflow from template:', template.name);
-            }}
-          />
-        );
+        return <WorkflowsPage />;
       case 'call-logs':
         return <CallLogs logs={mockCallLogs} />;
       case 'chat-logs':
