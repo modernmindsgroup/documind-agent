@@ -448,7 +448,7 @@ export default function AgentsPage() {
 
               <div className="flex-1 overflow-auto">
                 <TabsContent value="stats" className="p-6 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-sm text-muted-foreground">Total Calls</CardTitle>
@@ -467,6 +467,23 @@ export default function AgentsPage() {
                           ) : (
                             `${agentStats?.weeklyGrowth > 0 ? '+' : ''}${(agentStats?.weeklyGrowth * 100)?.toFixed(1) || 0}% from last week`
                           )}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm text-muted-foreground">Total Chats</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {statsLoading ? (
+                          <Skeleton className="h-8 w-20 mb-2" />
+                        ) : (
+                          <div className="text-2xl font-bold" data-testid="stat-total-chats">
+                            {agentStats?.totalChats || 0}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Active conversations
                         </p>
                       </CardContent>
                     </Card>
@@ -514,65 +531,133 @@ export default function AgentsPage() {
                     </Card>
                   </div>
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Recent Activity</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {activityLoading ? (
-                        <div className="space-y-4">
-                          {[...Array(5)].map((_, i) => (
-                            <div key={i} className="flex items-center justify-between py-2">
-                              <div className="flex items-center gap-3">
-                                <Skeleton className="w-2 h-2 rounded-full" />
-                                <div className="space-y-1">
-                                  <Skeleton className="h-4 w-32" />
-                                  <Skeleton className="h-3 w-24" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Recent Calls */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Phone className="h-4 w-4" />
+                          Recent Calls
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {activityLoading ? (
+                          <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                              <div key={i} className="flex items-center justify-between py-2">
+                                <div className="flex items-center gap-3">
+                                  <Skeleton className="w-2 h-2 rounded-full" />
+                                  <div className="space-y-1">
+                                    <Skeleton className="h-4 w-32" />
+                                    <Skeleton className="h-3 w-24" />
+                                  </div>
                                 </div>
+                                <Skeleton className="h-3 w-16" />
                               </div>
-                              <Skeleton className="h-3 w-16" />
-                            </div>
-                          ))}
-                        </div>
-                      ) : agentActivity.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                          <p>No recent activity for this agent</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          {agentActivity.map((activity, index) => (
-                            <div key={activity.id} className="flex items-center justify-between py-2" data-testid={`activity-item-${index}`}>
-                              <div className="flex items-center gap-3">
-                                <div className={cn("w-2 h-2 rounded-full", {
-                                  "bg-green-500": activity.status === "completed",
-                                  "bg-blue-500": activity.status === "active", 
-                                  "bg-red-500": activity.status === "failed"
-                                })} />
-                                <div>
-                                  <p className="text-sm font-medium capitalize">
-                                    {activity.type} {activity.status}
-                                    {activity.duration && ` (${Math.floor(activity.duration / 60)}:${String(activity.duration % 60).padStart(2, '0')})`}
-                                  </p>
-                                  {activity.phoneNumber && (
-                                    <p className="text-xs text-muted-foreground">{activity.phoneNumber}</p>
-                                  )}
+                            ))}
+                          </div>
+                        ) : agentActivity.filter(a => a.type === 'call').length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <Phone className="h-8 w-8 mx-auto mb-3 opacity-50" />
+                            <p className="text-sm">No recent calls</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {agentActivity.filter(a => a.type === 'call').slice(0, 5).map((activity, index) => (
+                              <div key={activity.id} className="flex items-center justify-between py-2" data-testid={`call-activity-item-${index}`}>
+                                <div className="flex items-center gap-3">
+                                  <div className={cn("w-2 h-2 rounded-full", {
+                                    "bg-green-500": activity.status === "completed",
+                                    "bg-blue-500": activity.status === "active", 
+                                    "bg-red-500": activity.status === "failed"
+                                  })} />
+                                  <div>
+                                    <p className="text-sm font-medium capitalize">
+                                      {activity.status}
+                                      {activity.duration && ` (${Math.floor(activity.duration / 60)}:${String(activity.duration % 60).padStart(2, '0')})`}
+                                    </p>
+                                    {activity.phoneNumber && (
+                                      <p className="text-xs text-muted-foreground">{activity.phoneNumber}</p>
+                                    )}
+                                  </div>
                                 </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(activity.createdAt).toLocaleDateString('en-US', { 
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </span>
                               </div>
-                              <span className="text-xs text-muted-foreground">
-                                {new Date(activity.createdAt).toLocaleDateString('en-US', { 
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Recent Chats */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="h-4 w-4" />
+                          Recent Chats
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {activityLoading ? (
+                          <div className="space-y-4">
+                            {[...Array(3)].map((_, i) => (
+                              <div key={i} className="flex items-center justify-between py-2">
+                                <div className="flex items-center gap-3">
+                                  <Skeleton className="w-2 h-2 rounded-full" />
+                                  <div className="space-y-1">
+                                    <Skeleton className="h-4 w-32" />
+                                    <Skeleton className="h-3 w-24" />
+                                  </div>
+                                </div>
+                                <Skeleton className="h-3 w-16" />
+                              </div>
+                            ))}
+                          </div>
+                        ) : agentActivity.filter(a => a.type === 'chat').length === 0 ? (
+                          <div className="text-center py-8 text-muted-foreground">
+                            <MessageSquare className="h-8 w-8 mx-auto mb-3 opacity-50" />
+                            <p className="text-sm">No recent chats</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            {agentActivity.filter(a => a.type === 'chat').slice(0, 5).map((activity, index) => (
+                              <div key={activity.id} className="flex items-center justify-between py-2" data-testid={`chat-activity-item-${index}`}>
+                                <div className="flex items-center gap-3">
+                                  <div className={cn("w-2 h-2 rounded-full", {
+                                    "bg-green-500": activity.status === "completed",
+                                    "bg-blue-500": activity.status === "active", 
+                                    "bg-red-500": activity.status === "failed"
+                                  })} />
+                                  <div>
+                                    <p className="text-sm font-medium capitalize">
+                                      {activity.status}
+                                      {activity.duration && ` (${Math.floor(activity.duration / 60)}:${String(activity.duration % 60).padStart(2, '0')})`}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">Text conversation</p>
+                                  </div>
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(activity.createdAt).toLocaleDateString('en-US', { 
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    month: 'short',
+                                    day: 'numeric'
+                                  })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="configuration" className="p-6">

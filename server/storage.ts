@@ -484,6 +484,7 @@ export class DatabaseStorage implements IStorage {
   // Agent-specific stats and activity methods
   async getAgentStats(agentId: string, tenantId: string): Promise<{
     totalCalls: number;
+    totalChats: number;
     successRate: number;
     averageDuration: number;
     weeklyGrowth: number;
@@ -503,8 +504,8 @@ export class DatabaseStorage implements IStorage {
     const callStats = await db
       .select({
         total: sql<number>`count(*)`,
-        successful: sql<number>`count(case when ${callLogs.status} = 'completed' then 1 end)`,
-        avgDuration: sql<number>`avg(${callLogs.duration})`,
+        successful: sql<number>`count(case when status = 'completed' then 1 end)`,
+        avgDuration: sql<number>`avg(duration)`,
       })
       .from(callLogs)
       .where(eq(callLogs.agentId, agentId));
@@ -513,6 +514,16 @@ export class DatabaseStorage implements IStorage {
     const totalCalls = stats.total || 0;
     const successRate = totalCalls > 0 ? (stats.successful || 0) / totalCalls : 0;
     const averageDuration = stats.avgDuration || 180;
+
+    // Get chat statistics for this specific agent
+    const [chatStats] = await db
+      .select({
+        total: sql<number>`count(*)`,
+      })
+      .from(chatLogs)
+      .where(eq(chatLogs.agentId, agentId));
+
+    const totalChats = chatStats.total || 0;
 
     // Calculate weekly growth (simplified - comparing last 7 days vs previous 7 days)
     const oneWeekAgo = new Date();
@@ -525,7 +536,7 @@ export class DatabaseStorage implements IStorage {
       .from(callLogs)
       .where(and(
         eq(callLogs.agentId, agentId),
-        gte(callLogs.createdAt, oneWeekAgo)
+        gte(callLogs.startTime, oneWeekAgo)
       ));
 
     const [previousCalls] = await db
@@ -533,8 +544,8 @@ export class DatabaseStorage implements IStorage {
       .from(callLogs)
       .where(and(
         eq(callLogs.agentId, agentId),
-        gte(callLogs.createdAt, twoWeeksAgo),
-        lt(callLogs.createdAt, oneWeekAgo)
+        gte(callLogs.startTime, twoWeeksAgo),
+        lt(callLogs.startTime, oneWeekAgo)
       ));
 
     const recentCount = recentCalls.count || 0;
@@ -543,6 +554,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       totalCalls,
+      totalChats,
       successRate,
       averageDuration: Math.round(averageDuration),
       weeklyGrowth,
@@ -574,13 +586,13 @@ export class DatabaseStorage implements IStorage {
         id: callLogs.id,
         type: sql<'call'>`'call'`,
         status: callLogs.status,
-        phoneNumber: callLogs.phoneNumber,
+        phoneNumber: callLogs.fromNumber,
         duration: callLogs.duration,
-        createdAt: callLogs.createdAt,
+        createdAt: callLogs.startTime,
       })
       .from(callLogs)
       .where(eq(callLogs.agentId, agentId))
-      .orderBy(desc(callLogs.createdAt))
+      .orderBy(desc(callLogs.startTime))
       .limit(Math.ceil(limit / 2));
 
     const chatActivity = await db
@@ -590,16 +602,17 @@ export class DatabaseStorage implements IStorage {
         status: chatLogs.status,
         phoneNumber: sql<string>`null`,
         duration: chatLogs.duration,
-        createdAt: chatLogs.createdAt,
+        createdAt: chatLogs.startTime,
       })
       .from(chatLogs)
       .where(eq(chatLogs.agentId, agentId))
-      .orderBy(desc(chatLogs.createdAt))
+      .orderBy(desc(chatLogs.startTime))
       .limit(Math.ceil(limit / 2));
 
     // Combine and sort by creation time
     const allActivity = [...callActivity, ...chatActivity]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .filter(activity => activity.createdAt !== null)
+      .sort((a, b) => (b.createdAt as Date).getTime() - (a.createdAt as Date).getTime())
       .slice(0, limit);
 
     return allActivity.map(activity => ({
@@ -607,6 +620,7 @@ export class DatabaseStorage implements IStorage {
       status: activity.status as 'completed' | 'failed' | 'active',
       phoneNumber: activity.phoneNumber || undefined,
       duration: activity.duration || undefined,
+      createdAt: activity.createdAt as Date,
     }));
   }
 
