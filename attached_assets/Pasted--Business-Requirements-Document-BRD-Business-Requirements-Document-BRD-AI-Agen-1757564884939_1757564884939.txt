@@ -1,0 +1,169 @@
+# Business Requirements Document (BRD)
+
+---
+
+# Business Requirements Document (BRD)
+
+**AI Agent Dashboard – Multi-Tenant Voice AI Platform (MVP)**
+
+---
+
+## 1. Document Information
+
+**Title:** BRD for AI Agent Dashboard
+
+**Version:** 1.0 (MVP Scope)
+
+---
+
+## 2. Introduction
+
+### 2.1 Project Overview
+
+The **AI Agent Dashboard** is a multi-tenant platform enabling developers and businesses to **create, deploy, and manage voice/chat-based AI agents**. Inspired by **Vapi AI**, it supports **real-time conversations, lead qualification, scheduling, and system integrations**.
+
+Core features:
+
+- Create agents (Single Prompt, Multi-Prompt, Conversation Flow, Custom LLM).
+- Visual workflow editor for multi-agent orchestration.
+- Knowledge Base management (FAQs, files, URLs).
+- Integrations (telephony, LLMs, APIs).
+- Monitoring (calls, chats, webhooks, analytics).
+
+### 2.2 Business Objectives
+
+- Provide **intuitive UI** for non-technical users to build AI agents.
+- Reduce voice/chat AI deployment time from **months → minutes**.
+- Compete with Vapi AI by offering **similar core features + custom extensions**.
+
+### 2.3 Target Audience
+
+- Developers building voice/chat AI.
+- Businesses in customer service, sales, healthcare, real estate.
+- Enterprises requiring **scalable multilingual AI agents**.
+
+---
+
+## 3. Scope
+
+### 3.1 In-Scope (MVP)
+
+- **Sidebar Navigation:**
+    - Dashboard
+    - Build → Agents, Workflows, Knowledge Base
+    - Integrations → Webhooks, API Keys
+    - Monitor → Call Logs, Chat Logs, Webhook Logs
+- **Dashboard Overview:**
+    - Metrics: total agents, workflows, calls/chats, costs
+    - Recent activity, quick actions
+- **Build Section:**
+    - Agents (creation/editor with templates, multiple types)
+    - Workflows (visual editor, JSON import/export, templates)
+    - Knowledge Base (folders, files, URLs, sync, timestamp tracking)
+- **Integrations:**
+    - Webhooks (configure/test)
+    - API Keys (LLMs, telephony, third-party APIs)
+- **Monitor:**
+    - Call Logs (filters, transcripts, costs, exports)
+    - Chat Logs (filters, transcripts)
+    - Webhook Logs
+- **Other:**
+    - User authentication (email/password, Google OAuth)
+    - Role-based access: Super Admin, Tenant Admin
+    - Agent/workflow templates (min 6 each, support JSON import)
+    - Basic analytics + export (CSV for logs)
+    - Tool calling (API calls from agents)
+    - Automated & A/B testing
+    - Compliance guardrails
+
+---
+
+## 4. Stakeholders
+
+- **End Users:** Developers, businesses.
+- **Administrators:** Platform owners.
+- **Developers:** Internal team building MVP.
+
+---
+
+## 5. Functional Requirements
+
+### 5.1 Authentication & Access
+
+- Email/password + Google OAuth.
+- Roles: Super Admin, Tenant Admin.
+
+### 5.2 Sidebar Navigation
+
+- Dark theme.
+- Sections:
+    - **Dashboard** (overview)
+    - **Build:** Agents, Workflows, Knowledge Base
+    - **Integrations:** Webhooks, API Keys
+    - **Monitor:** Call Logs, Chat Logs, Webhook Logs
+
+### 5.3 Dashboard Module
+
+- Metrics: total agents, workflows, calls/chats, costs.
+- Recent activity + quick actions (Create Agent/Workflow).
+- Black UI with placeholders if empty.
+
+### 5.4 Build > Agents
+
+- **List View:** Name, Type, Voice, Phone, Edited By, Actions.
+- **Agent Types:** Conversation Flow, Single Prompt, Multi-Prompt, Custom LLM.
+- **Templates:** Blank + 6+ industry templates.
+- **Editor:** Prompt editor, Knowledge Base tab, Speech Settings, Realtime Transcription, Call Settings, Analysis, Security/Fallback, Webhooks.
+- **Testing:** Audio + Chat test.
+
+### 5.5 Build > Workflows
+
+- **List View:** Search, Upload JSON, Docs link.
+- **Create Workflow:**
+    - Templates (Lead Qualification, Scheduler, Survey, Blank).
+    - Visual editor with nodes (Conversation, Condition, Tools).
+    - JSON import/export.
+- **Nodes:** Start, Condition branches, Tool/API calls, End.
+
+### 5.6 Build > Knowledge Base
+
+- **Tree View:** Folders for FAQs, URLs, PDFs.
+- **Actions:** Add, Edit, Sync.
+- **Tracking:** ID + timestamp.
+
+### 5.7 Integrations > Webhooks
+
+- List + configure webhooks.
+- Fields: Event Type, URL, Secret.
+- Test button.
+
+### 5.8 Integrations > API Keys
+
+- Add/edit keys for LLMs, telephony (e.g., Twilio), third-party APIs.
+
+### 5.9 Monitor > Call Logs
+
+- Filters: All, Transferred, Success, Failed.
+- Columns: Call ID, Agent, Phones, Type, Reason, Evaluation, Start Time, Duration, Cost.
+- Details: Recording, Transcript, Logs, Analysis, Cost.
+- Export CSV.
+
+### 5.10 Monitor > Chat Logs
+
+- Similar to Call Logs.
+- Columns: Chat ID, Agent, User, Duration, Messages, Status.
+- Details: Full transcript.
+
+### 5.11 Monitor > Webhook Logs
+
+- Logs of all webhook events triggered.
+- Filters: Event Type, Success/Fail, Timestamps.
+
+---
+
+## 6. Non-Functional Requirements (MVP-Level)
+
+- **Performance:** Handle 10,000+ concurrent interactions.
+- **Scalability:** Multi-tenant, cloud-ready.
+- **Security:** Role-based access, encrypted keys.
+- **Compliance:** Guardrails for hallucination mitigation.
