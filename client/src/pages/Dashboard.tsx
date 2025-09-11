@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DashboardMetrics } from "@/components/DashboardMetrics";
 import { RecentActivity } from "@/components/RecentActivity";
 import { QuickActions } from "@/components/QuickActions";
-import { AgentManagement } from "@/components/AgentManagement";
+import AgentsPage from "@/pages/AgentsPage";
 import { WorkflowBuilder } from "@/components/WorkflowBuilder";
 import { CallLogs } from "@/components/CallLogs";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -53,7 +53,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
   const renderContent = () => {
     switch (currentView) {
       case 'agents':
-        return <AgentManagement />;
+        return <AgentsPage />;
       case 'workflows':
         return (
           <WorkflowBuilder 
