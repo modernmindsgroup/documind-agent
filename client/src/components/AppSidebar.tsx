@@ -133,7 +133,7 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {item.items ? (
-                    <Collapsible className="group/collapsible">
+                    <Collapsible defaultOpen={true} className="group/collapsible">
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           data-testid={`button-sidebar-${item.title.toLowerCase()}`}

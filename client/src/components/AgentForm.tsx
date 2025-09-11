@@ -30,15 +30,14 @@ import { insertAgentSchema } from "@shared/schema";
 import type { Agent } from "@shared/schema";
 import type { AgentTemplate } from "@/lib/types";
 
-// Use shared schema for type safety, excluding server-controlled fields
-const agentFormSchema = insertAgentSchema.omit({
-  id: true,
-  tenantId: true,
-  editedBy: true,
-  createdAt: true,
-  updatedAt: true,
-}).extend({
+// Define form schema directly for better type compatibility
+const agentFormSchema = z.object({
+  name: z.string().min(1, "Agent name is required"),
+  type: z.enum(["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"]),
+  voice: z.string().default("alloy"),
   phoneNumber: z.string().optional(),
+  prompt: z.string().optional(),
+  isActive: z.boolean().default(false),
   config: z.record(z.any()).default({}),
 });
 
