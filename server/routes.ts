@@ -330,6 +330,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put('/api/workflows/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertWorkflowSchema.omit({ tenantId: true }).parse(req.body);
+      
+      const workflow = await storage.updateWorkflow(req.params.id, validatedData, req.user!.tenantId);
+      if (!workflow) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+      res.json(workflow);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update workflow error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.patch('/api/workflows/:id/toggle', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { isActive } = req.body;
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ error: 'isActive must be a boolean' });
+      }
+      
+      const workflow = await storage.updateWorkflow(req.params.id, { isActive }, req.user!.tenantId);
+      if (!workflow) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+      res.json(workflow);
+    } catch (error) {
+      console.error('Toggle workflow error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/workflows/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const success = await storage.deleteWorkflow(req.params.id, req.user!.tenantId);
+      if (!success) {
+        return res.status(404).json({ error: 'Workflow not found' });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete workflow error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Call Logs routes
   app.get('/api/call-logs', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
