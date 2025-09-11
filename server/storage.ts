@@ -396,12 +396,12 @@ export class DatabaseStorage implements IStorage {
     // For demo purposes, return realistic sample data
     // This makes the dashboard look engaging with meaningful metrics
     return {
-      totalAgents: 12,
+      totalAgents: 3,
       totalWorkflows: 4,
-      totalCalls: 856,
-      totalChats: 1243,
-      monthlyCallCost: 4785, // $47.85 in cents
-      monthlyCallMinutes: 8740, // 145h 40m in minutes
+      totalCalls: 80,
+      totalChats: 59,
+      monthlyCallCost: 2450, // $24.50 in cents
+      monthlyCallMinutes: 1840, // 30h 40m in minutes
     };
 
     // TODO: Uncomment this section to use real database data instead of demo data
