@@ -266,7 +266,8 @@ export default function AgentsPage() {
     return isActive ? "Active" : "Inactive";
   };
 
-  if (isLoading || statsLoading || activityLoading) {
+  // Only show full loading for initial agent list load
+  if (isLoading) {
     return (
       <div className="h-full flex">
         <div className="w-80 border-r border-border p-4 space-y-3">
@@ -701,7 +702,7 @@ export default function AgentsPage() {
                                           <Input 
                                             type="number" 
                                             data-testid="input-llm-max-tokens"
-                                            {...field}
+                                            value={field.value?.toString() || ""}
                                             onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                           />
                                         </FormControl>
@@ -722,7 +723,7 @@ export default function AgentsPage() {
                                             min="0" 
                                             max="2"
                                             data-testid="input-llm-temperature"
-                                            {...field}
+                                            value={field.value?.toString() || ""}
                                             onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                                           />
                                         </FormControl>
