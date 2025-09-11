@@ -28,7 +28,7 @@ import {
   type InsertApiKey
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, like, count } from "drizzle-orm";
+import { eq, desc, and, like, count, sql, gte, lt } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -100,6 +100,45 @@ export interface IStorage {
     monthlyCallCost: number;
     monthlyCallMinutes: number;
   }>;
+
+  // Agent-specific methods
+  getAgentStats(agentId: string, tenantId: string): Promise<{
+    totalCalls: number;
+    successRate: number;
+    averageDuration: number;
+    weeklyGrowth: number;
+  } | null>;
+
+  getAgentActivity(agentId: string, tenantId: string, limit?: number): Promise<{
+    id: string;
+    type: 'call' | 'chat';
+    status: 'completed' | 'failed' | 'active';
+    phoneNumber?: string;
+    duration?: number;
+    createdAt: Date;
+  }[]>;
+
+  updateAgentStatus(agentId: string, isActive: boolean, tenantId: string): Promise<Agent | null>;
+
+  updateAgentConfiguration(agentId: string, config: {
+    llm?: {
+      provider: string;
+      model: string;
+      prompt?: string;
+      maxTokens?: number;
+      temperature?: number;
+    };
+    transcriber?: {
+      provider: string;
+      language: string;
+      model: string;
+    };
+    voice?: {
+      provider: string;
+      voice: string;
+      model: string;
+    };
+  }, tenantId: string): Promise<Agent | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -443,65 +482,139 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Agent-specific stats and activity methods
-  async getAgentStats(agentId: string): Promise<{
+  async getAgentStats(agentId: string, tenantId: string): Promise<{
     totalCalls: number;
     successRate: number;
-    averageDuration: number; // in seconds
-    totalChats: number;
+    averageDuration: number;
     weeklyGrowth: number;
-  }> {
-    // For demo purposes, return realistic per-agent stats
-    // In real implementation, this would query calls/chats tables filtered by agentId
-    const baseStats = {
-      totalCalls: Math.floor(Math.random() * 500) + 100,
-      successRate: 0.9 + Math.random() * 0.09, // 90-99%
-      averageDuration: 180 + Math.floor(Math.random() * 120), // 3-5 minutes
-      totalChats: Math.floor(Math.random() * 200) + 50,
-      weeklyGrowth: (Math.random() - 0.5) * 0.3, // -15% to +15%
-    };
+  } | null> {
+    // First verify the agent exists and belongs to the tenant
+    const agent = await db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .limit(1);
     
-    return baseStats;
+    if (agent.length === 0) {
+      return null;
+    }
+
+    // Get call statistics for this specific agent
+    const callStats = await db
+      .select({
+        total: sql<number>`count(*)`,
+        successful: sql<number>`count(case when ${callLogs.status} = 'completed' then 1 end)`,
+        avgDuration: sql<number>`avg(${callLogs.duration})`,
+      })
+      .from(callLogs)
+      .where(eq(callLogs.agentId, agentId));
+
+    const stats = callStats[0];
+    const totalCalls = stats.total || 0;
+    const successRate = totalCalls > 0 ? (stats.successful || 0) / totalCalls : 0;
+    const averageDuration = stats.avgDuration || 180;
+
+    // Calculate weekly growth (simplified - comparing last 7 days vs previous 7 days)
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const [recentCalls] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(callLogs)
+      .where(and(
+        eq(callLogs.agentId, agentId),
+        gte(callLogs.createdAt, oneWeekAgo)
+      ));
+
+    const [previousCalls] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(callLogs)
+      .where(and(
+        eq(callLogs.agentId, agentId),
+        gte(callLogs.createdAt, twoWeeksAgo),
+        lt(callLogs.createdAt, oneWeekAgo)
+      ));
+
+    const recentCount = recentCalls.count || 0;
+    const previousCount = previousCalls.count || 0;
+    const weeklyGrowth = previousCount > 0 ? (recentCount - previousCount) / previousCount : 0;
+
+    return {
+      totalCalls,
+      successRate,
+      averageDuration: Math.round(averageDuration),
+      weeklyGrowth,
+    };
   }
 
-  async getAgentActivity(agentId: string, limit: number = 10): Promise<Array<{
+  async getAgentActivity(agentId: string, tenantId: string, limit: number = 10): Promise<{
     id: string;
     type: 'call' | 'chat';
     status: 'completed' | 'failed' | 'active';
     phoneNumber?: string;
     duration?: number;
     createdAt: Date;
-  }>> {
-    // For demo purposes, return realistic activity data
-    // In real implementation, this would query calls/chats tables
-    const activities = [];
-    const now = new Date();
+  }[]> {
+    // First verify the agent exists and belongs to the tenant
+    const agent = await db
+      .select()
+      .from(agents)
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
+      .limit(1);
     
-    for (let i = 0; i < limit; i++) {
-      const minutesAgo = Math.floor(Math.random() * 1440); // Up to 24 hours ago
-      const type: 'call' | 'chat' = Math.random() > 0.6 ? 'call' : 'chat';
-      const statuses = ['completed', 'completed', 'completed', 'failed', 'active'];
-      const status = statuses[Math.floor(Math.random() * statuses.length)] as 'completed' | 'failed' | 'active';
-      
-      activities.push({
-        id: `activity_${i}_${agentId}`,
-        type,
-        status,
-        phoneNumber: type === 'call' ? `+1 (555) ${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 9000) + 1000)}` : undefined,
-        duration: status === 'completed' ? Math.floor(Math.random() * 600) + 60 : undefined, // 1-11 minutes
-        createdAt: new Date(now.getTime() - minutesAgo * 60000),
-      });
+    if (agent.length === 0) {
+      return [];
     }
-    
-    return activities.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    // Get actual activity data from both call and chat logs
+    const callActivity = await db
+      .select({
+        id: callLogs.id,
+        type: sql<'call'>`'call'`,
+        status: callLogs.status,
+        phoneNumber: callLogs.phoneNumber,
+        duration: callLogs.duration,
+        createdAt: callLogs.createdAt,
+      })
+      .from(callLogs)
+      .where(eq(callLogs.agentId, agentId))
+      .orderBy(desc(callLogs.createdAt))
+      .limit(Math.ceil(limit / 2));
+
+    const chatActivity = await db
+      .select({
+        id: chatLogs.id,
+        type: sql<'chat'>`'chat'`,
+        status: chatLogs.status,
+        phoneNumber: sql<string>`null`,
+        duration: chatLogs.duration,
+        createdAt: chatLogs.createdAt,
+      })
+      .from(chatLogs)
+      .where(eq(chatLogs.agentId, agentId))
+      .orderBy(desc(chatLogs.createdAt))
+      .limit(Math.ceil(limit / 2));
+
+    // Combine and sort by creation time
+    const allActivity = [...callActivity, ...chatActivity]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
+
+    return allActivity.map(activity => ({
+      ...activity,
+      status: activity.status as 'completed' | 'failed' | 'active',
+      phoneNumber: activity.phoneNumber || undefined,
+      duration: activity.duration || undefined,
+    }));
   }
 
-  async updateAgentStatus(agentId: string, isActive: boolean): Promise<Agent | null> {
-    // For demo purposes, update in-memory agent data
-    // In real implementation, this would update the database
+  async updateAgentStatus(agentId: string, isActive: boolean, tenantId: string): Promise<Agent | null> {
     const [updatedAgent] = await db
       .update(agents)
       .set({ isActive, updatedAt: new Date() })
-      .where(eq(agents.id, agentId))
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
       .returning();
     return updatedAgent || null;
   }
@@ -524,8 +637,8 @@ export class DatabaseStorage implements IStorage {
       voice: string;
       model: string;
     };
-  }): Promise<Agent | null> {
-    // Update agent with new configuration
+  }, tenantId: string): Promise<Agent | null> {
+    // Update agent with new configuration, ensuring tenant scoping
     const updateData: Partial<Agent> = { updatedAt: new Date() };
     
     if (config.llm?.prompt) {
@@ -538,7 +651,7 @@ export class DatabaseStorage implements IStorage {
     const [updatedAgent] = await db
       .update(agents)
       .set(updateData)
-      .where(eq(agents.id, agentId))
+      .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)))
       .returning();
     
     return updatedAgent || null;

@@ -141,7 +141,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/agents/:id/stats', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
       const { id } = req.params;
-      const stats = await storage.getAgentStats(id);
+      const stats = await storage.getAgentStats(id, req.user!.tenantId);
+      
+      if (!stats) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
       res.json(stats);
     } catch (error) {
       console.error('Error fetching agent stats:', error);
@@ -153,7 +158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const limit = parseInt(req.query.limit as string) || 10;
-      const activity = await storage.getAgentActivity(id, limit);
+      const activity = await storage.getAgentActivity(id, req.user!.tenantId, limit);
       res.json(activity);
     } catch (error) {
       console.error('Error fetching agent activity:', error);
@@ -170,10 +175,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'isActive must be a boolean' });
       }
       
-      const updatedAgent = await storage.updateAgentStatus(id, isActive);
+      const updatedAgent = await storage.updateAgentStatus(id, isActive, req.user!.tenantId);
       
       if (!updatedAgent) {
-        return res.status(404).json({ error: 'Agent not found' });
+        return res.status(404).json({ error: 'Agent not found or access denied' });
       }
       
       res.json(updatedAgent);
@@ -188,10 +193,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const config = req.body;
       
-      const updatedAgent = await storage.updateAgentConfiguration(id, config);
+      // Basic validation - could be enhanced with more detailed schema validation
+      if (!config || typeof config !== 'object') {
+        return res.status(400).json({ error: 'Invalid configuration data' });
+      }
+      
+      const updatedAgent = await storage.updateAgentConfiguration(id, config, req.user!.tenantId);
       
       if (!updatedAgent) {
-        return res.status(404).json({ error: 'Agent not found' });
+        return res.status(404).json({ error: 'Agent not found or access denied' });
       }
       
       res.json(updatedAgent);
