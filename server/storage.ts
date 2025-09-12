@@ -118,6 +118,25 @@ export interface IStorage {
   updateApiKey(id: string, apiKey: Partial<InsertApiKey>, tenantId: string): Promise<ApiKey | undefined>;
   deleteApiKey(id: string, tenantId: string): Promise<boolean>;
   
+  // Conversations
+  getConversationsByTenant(tenantId: string, filters?: {
+    agentId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ conversations: Conversation[]; total: number }>;
+  getConversation(id: string, tenantId: string): Promise<Conversation | undefined>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  updateConversation(id: string, conversation: Partial<InsertConversation>, tenantId: string): Promise<Conversation | undefined>;
+  
+  // Messages
+  getMessagesByConversation(conversationId: string, tenantId: string, filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ messages: Message[]; total: number }>;
+  createMessage(message: InsertMessage): Promise<Message>;
+
   // Analytics
   getDashboardMetrics(tenantId: string): Promise<{
     totalAgents: number;
@@ -403,7 +422,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(callLogs.tenantId, tenantId)];
     
     if (status && status !== 'all') {
-      conditions.push(eq(callLogs.status, status));
+      conditions.push(eq(callLogs.status, status as any));
     }
     
     if (agentId) {
@@ -445,7 +464,7 @@ export class DatabaseStorage implements IStorage {
     const conditions = [eq(chatLogs.tenantId, tenantId)];
     
     if (status && status !== 'all') {
-      conditions.push(eq(chatLogs.status, status));
+      conditions.push(eq(chatLogs.status, status as any));
     }
     
     if (agentId) {
@@ -762,6 +781,106 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updatedAgent || null;
+  }
+
+  // Conversations
+  async getConversationsByTenant(tenantId: string, filters: {
+    agentId?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ conversations: Conversation[]; total: number }> {
+    const { agentId, search, limit = 50, offset = 0 } = filters;
+    
+    // Build conditions array
+    const conditions = [eq(conversations.tenantId, tenantId)];
+    
+    if (agentId) {
+      conditions.push(eq(conversations.agentId, agentId));
+    }
+    
+    if (search && search.trim()) {
+      conditions.push(like(conversations.title, `%${search}%`));
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+    const [conversationsList, totalResult] = await Promise.all([
+      db.select().from(conversations)
+        .where(whereClause)
+        .orderBy(desc(conversations.updatedAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(conversations).where(whereClause)
+    ]);
+
+    return { conversations: conversationsList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async getConversation(id: string, tenantId: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(and(eq(conversations.id, id), eq(conversations.tenantId, tenantId)))
+      .limit(1);
+    return conversation || undefined;
+  }
+
+  async createConversation(conversation: InsertConversation): Promise<Conversation> {
+    const [newConversation] = await db
+      .insert(conversations)
+      .values(conversation)
+      .returning();
+    return newConversation;
+  }
+
+  async updateConversation(id: string, conversation: Partial<InsertConversation>, tenantId: string): Promise<Conversation | undefined> {
+    const [updated] = await db
+      .update(conversations)
+      .set({ ...conversation, updatedAt: new Date() })
+      .where(and(eq(conversations.id, id), eq(conversations.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+  
+  // Messages
+  async getMessagesByConversation(conversationId: string, tenantId: string, filters: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ messages: Message[]; total: number }> {
+    const { search, limit = 100, offset = 0 } = filters;
+    
+    // Build conditions array
+    const conditions = [
+      eq(messages.conversationId, conversationId),
+      eq(messages.tenantId, tenantId)
+    ];
+    
+    if (search && search.trim()) {
+      conditions.push(like(messages.content, `%${search}%`));
+    }
+
+    const whereClause = conditions.length === 2 ? and(...conditions) : and(...conditions);
+
+    const [messagesList, totalResult] = await Promise.all([
+      db.select().from(messages)
+        .where(whereClause)
+        .orderBy(messages.createdAt) // Order chronologically for conversation flow
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(messages).where(whereClause)
+    ]);
+
+    return { messages: messagesList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async createMessage(message: InsertMessage): Promise<Message> {
+    const [newMessage] = await db
+      .insert(messages)
+      .values(message)
+      .returning();
+    return newMessage;
   }
 }
 

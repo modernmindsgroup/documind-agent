@@ -10,7 +10,9 @@ import {
   insertKnowledgeBaseSchema,
   insertWebhookSchema,
   insertApiKeySchema,
-  insertAgentPreferencesSchema
+  insertAgentPreferencesSchema,
+  insertConversationSchema,
+  insertMessageSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -306,8 +308,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/agents/:id/preferences', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
       const validatedData = insertAgentPreferencesSchema.omit({ 
-        agentId: true, 
-        createdAt: true 
+        agentId: true
       }).partial().parse(req.body);
       const preferences = await storage.updateAgentPreferences(req.params.id, validatedData, req.user!.tenantId);
       if (!preferences) {
@@ -540,6 +541,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.errors });
       }
       console.error('Create API key error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Conversations routes
+  app.get('/api/conversations', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { agentId, search, limit, offset } = req.query;
+      const conversations = await storage.getConversationsByTenant(req.user!.tenantId, {
+        agentId: agentId as string,
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      res.json(conversations);
+    } catch (error) {
+      console.error('Get conversations error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/conversations', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertConversationSchema.parse({
+        ...req.body,
+        tenantId: req.user!.tenantId,
+      });
+      
+      const conversation = await storage.createConversation(validatedData);
+      res.status(201).json(conversation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Create conversation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/conversations/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const conversation = await storage.getConversation(req.params.id, req.user!.tenantId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      res.json(conversation);
+    } catch (error) {
+      console.error('Get conversation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/conversations/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertConversationSchema.omit({ 
+        tenantId: true 
+      }).partial().parse(req.body);
+      
+      const conversation = await storage.updateConversation(req.params.id, validatedData, req.user!.tenantId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+      res.json(conversation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update conversation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Messages routes
+  app.get('/api/conversations/:id/messages', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { search, limit, offset } = req.query;
+      const messages = await storage.getMessagesByConversation(req.params.id, req.user!.tenantId, {
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      res.json(messages);
+    } catch (error) {
+      console.error('Get messages error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/conversations/:id/messages', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertMessageSchema.parse({
+        ...req.body,
+        conversationId: req.params.id,
+        tenantId: req.user!.tenantId,
+      });
+      
+      const message = await storage.createMessage(validatedData);
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Create message error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
