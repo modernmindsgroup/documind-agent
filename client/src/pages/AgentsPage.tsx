@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { 
   Bot, 
   Activity, 
@@ -35,6 +36,7 @@ import {
   Code2, 
   Phone, 
   MessageSquare, 
+  MessageCircle,
   Plus, 
   Play, 
   Pause, 
@@ -515,6 +517,10 @@ export default function AgentsPage() {
                   <TabsTrigger value="widget" className="flex items-center gap-2">
                     <Code2 className="h-4 w-4" />
                     Widget
+                  </TabsTrigger>
+                  <TabsTrigger value="conversation-history" className="flex items-center gap-2">
+                    <MessageCircle className="h-4 w-4" />
+                    Conversations
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1274,6 +1280,10 @@ export default function AgentsPage() {
                     </CardContent>
                   </Card>
                 </TabsContent>
+
+                <TabsContent value="conversation-history" className="p-6">
+                  <ConversationHistory agentId={selectedAgent.id} />
+                </TabsContent>
               </div>
             </Tabs>
           </>
@@ -1284,6 +1294,161 @@ export default function AgentsPage() {
         open={isCreateModalOpen} 
         onOpenChange={setIsCreateModalOpen}
       />
+    </div>
+  );
+}
+
+// Conversation History Component
+function ConversationHistory({ agentId }: { agentId: string }) {
+  const [search, setSearch] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [isMessageViewerOpen, setIsMessageViewerOpen] = useState(false);
+
+  const { data: conversations, isLoading: conversationsLoading } = useQuery({
+    queryKey: ['/api/conversations', { agentId, search }],
+    enabled: !!agentId,
+  });
+
+  const { data: messages, isLoading: messagesLoading } = useQuery({
+    queryKey: ['/api/conversations', selectedConversationId, 'messages'],
+    enabled: !!selectedConversationId,
+  });
+
+  const handleConversationClick = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    setIsMessageViewerOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold">Conversation History</h3>
+          <p className="text-sm text-muted-foreground">
+            View and search through past conversations with this agent
+          </p>
+        </div>
+      </div>
+
+      {/* Search Input */}
+      <div className="space-y-4">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-3 py-2 border border-border rounded-md bg-background"
+            data-testid="input-conversation-search"
+          />
+        </div>
+
+        {/* Conversations List */}
+        <div className="space-y-2">
+          {conversationsLoading ? (
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="p-4 border border-border rounded-lg">
+                  <Skeleton className="h-4 w-3/4 mb-2" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              ))}
+            </div>
+          ) : conversations?.conversations?.length ? (
+            conversations.conversations.map((conversation: any) => (
+              <div
+                key={conversation.id}
+                className="p-4 border border-border rounded-lg hover-elevate cursor-pointer"
+                onClick={() => handleConversationClick(conversation.id)}
+                data-testid={`conversation-item-${conversation.id}`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">{conversation.title || 'Untitled Conversation'}</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {conversation.contactId && `Contact: ${conversation.contactId}`}
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {new Date(conversation.updatedAt).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h4 className="font-medium mb-2">No conversations yet</h4>
+              <p className="text-sm text-muted-foreground">
+                Conversations will appear here once visitors start chatting with your agent
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Off-canvas Message Viewer using Sheet */}
+      <Sheet open={isMessageViewerOpen} onOpenChange={setIsMessageViewerOpen}>
+        <SheetContent side="right" className="w-full max-w-2xl p-0">
+          <SheetHeader className="p-4 border-b border-border">
+            <SheetTitle>
+              {conversations?.conversations?.find((c: any) => c.id === selectedConversationId)?.title || 'Conversation'}
+            </SheetTitle>
+            <p className="text-sm text-muted-foreground">Message History</p>
+          </SheetHeader>
+          
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 h-[calc(100vh-120px)]">
+            {messagesLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-4 w-1/4" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : messages?.messages?.length ? (
+              messages.messages.map((message: any) => (
+                <div key={message.id} className="flex gap-3" data-testid={`message-row-${message.id}`}>
+                  <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium",
+                    message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                  )}>
+                    {message.role === 'user' ? 'U' : 'A'}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium capitalize">{message.role}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(message.createdAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "p-3 rounded-lg text-sm",
+                      message.role === 'user' 
+                        ? 'bg-primary/10 text-primary-foreground border border-primary/20' 
+                        : 'bg-muted'
+                    )}
+                    data-testid={`text-message-role-${message.role}-${message.id}`}
+                    >
+                      {message.content}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">No messages in this conversation</p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
