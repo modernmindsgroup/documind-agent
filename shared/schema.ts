@@ -254,6 +254,53 @@ export const apiKeys = pgTable("api_keys", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Contacts (guest users who interact with agents via widget)
+export const contacts = pgTable("contacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Agent Preferences (widget and contact requirements)
+export const agentPreferences = pgTable("agent_preferences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(),
+  isContactRequired: boolean("is_contact_required").default(true),
+  logo: text("logo"), // URL or base64 image
+  displayName: text("display_name"), // Custom name shown in widget
+  widgetThemeColor: text("widget_theme_color").default("#2563eb"), // Hex color code
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Conversations between contacts and agents
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  contactId: varchar("contact_id"), // Nullable if contact not required
+  title: text("title").notNull(), // Auto-generated or "Untitled"
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Individual messages within conversations
+export const messages = pgTable("messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  conversationId: varchar("conversation_id").notNull(),
+  contactId: varchar("contact_id"), // Nullable if contact not required
+  content: text("content").notNull(),
+  role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Define relations for foreign keys
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
@@ -265,6 +312,9 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   webhooks: many(webhooks),
   webhookLogs: many(webhookLogs),
   apiKeys: many(apiKeys),
+  contacts: many(contacts),
+  conversations: many(conversations),
+  messages: many(messages),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -286,6 +336,9 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   }),
   callLogs: many(callLogs),
   chatLogs: many(chatLogs),
+  preferences: one(agentPreferences),
+  conversations: many(conversations),
+  messages: many(messages),
 }));
 
 export const workflowsRelations = relations(workflows, ({ one }) => ({
@@ -351,6 +404,57 @@ export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
   }),
 }));
 
+export const contactsRelations = relations(contacts, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [contacts.tenantId],
+    references: [tenants.id],
+  }),
+  conversations: many(conversations),
+  messages: many(messages),
+}));
+
+export const agentPreferencesRelations = relations(agentPreferences, ({ one }) => ({
+  agent: one(agents, {
+    fields: [agentPreferences.agentId],
+    references: [agents.id],
+  }),
+}));
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [conversations.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [conversations.agentId],
+    references: [agents.id],
+  }),
+  contact: one(contacts, {
+    fields: [conversations.contactId],
+    references: [contacts.id],
+  }),
+  messages: many(messages),
+}));
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [messages.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [messages.agentId],
+    references: [agents.id],
+  }),
+  conversation: one(conversations, {
+    fields: [messages.conversationId],
+    references: [conversations.id],
+  }),
+  contact: one(contacts, {
+    fields: [messages.contactId],
+    references: [contacts.id],
+  }),
+}));
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -406,6 +510,37 @@ export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
   keyValue: true,
 });
 
+export const insertContactSchema = createInsertSchema(contacts).pick({
+  tenantId: true,
+  name: true,
+  email: true,
+  phone: true,
+});
+
+export const insertAgentPreferencesSchema = createInsertSchema(agentPreferences).pick({
+  agentId: true,
+  isContactRequired: true,
+  logo: true,
+  displayName: true,
+  widgetThemeColor: true,
+});
+
+export const insertConversationSchema = createInsertSchema(conversations).pick({
+  tenantId: true,
+  agentId: true,
+  contactId: true,
+  title: true,
+});
+
+export const insertMessageSchema = createInsertSchema(messages).pick({
+  tenantId: true,
+  agentId: true,
+  conversationId: true,
+  contactId: true,
+  content: true,
+  role: true,
+});
+
 // Export types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -424,3 +559,11 @@ export type InsertWebhook = z.infer<typeof insertWebhookSchema>;
 export type Webhook = typeof webhooks.$inferSelect;
 export type InsertApiKey = z.infer<typeof insertApiKeySchema>;
 export type ApiKey = typeof apiKeys.$inferSelect;
+export type InsertContact = z.infer<typeof insertContactSchema>;
+export type Contact = typeof contacts.$inferSelect;
+export type InsertAgentPreferences = z.infer<typeof insertAgentPreferencesSchema>;
+export type AgentPreferences = typeof agentPreferences.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertMessage = z.infer<typeof insertMessageSchema>;
+export type Message = typeof messages.$inferSelect;

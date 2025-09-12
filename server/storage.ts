@@ -9,6 +9,21 @@ import {
   webhookLogs,
   webhooks,
   apiKeys,
+  contacts,
+  agentPreferences,
+  conversations,
+  messages,
+  llmProviders,
+  llmModels,
+  llmConfigurations,
+  voiceProviders,
+  voices,
+  voiceModels,
+  voiceConfigurations,
+  transcriberProviders,
+  transcriberLanguages,
+  transcriberModels,
+  transcriberConfigurations,
   type User, 
   type InsertUser,
   type Tenant,
@@ -25,7 +40,15 @@ import {
   type Webhook,
   type InsertWebhook,
   type ApiKey,
-  type InsertApiKey
+  type InsertApiKey,
+  type Contact,
+  type InsertContact,
+  type AgentPreferences,
+  type InsertAgentPreferences,
+  type Conversation,
+  type InsertConversation,
+  type Message,
+  type InsertMessage
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, like, count, sql, gte, lt } from "drizzle-orm";
@@ -193,11 +216,67 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAgent(agent: InsertAgent): Promise<Agent> {
-    const [newAgent] = await db
-      .insert(agents)
-      .values(agent)
-      .returning();
-    return newAgent;
+    // Wrap everything in a transaction to ensure atomicity
+    return await db.transaction(async (tx) => {
+      const [newAgent] = await tx
+        .insert(agents)
+        .values(agent)
+        .returning();
+
+      // Create default agent preferences
+      await tx.insert(agentPreferences).values({
+        agentId: newAgent.id,
+        isContactRequired: true,
+        displayName: newAgent.name,
+        widgetThemeColor: "#2563eb",
+      });
+
+      // Get first available providers and models (more robust than hardcoded names)
+      const [defaultLlmProvider] = await tx.select().from(llmProviders).where(eq(llmProviders.isActive, true)).limit(1);
+      const [defaultLlmModel] = await tx.select().from(llmModels).where(eq(llmModels.llmProviderId, defaultLlmProvider?.id || '')).limit(1);
+      
+      const [defaultVoiceProvider] = await tx.select().from(voiceProviders).where(eq(voiceProviders.isActive, true)).limit(1);
+      const [defaultVoice] = await tx.select().from(voices).where(eq(voices.voiceProviderId, defaultVoiceProvider?.id || '')).limit(1);
+      const [defaultVoiceModel] = await tx.select().from(voiceModels).where(eq(voiceModels.voiceProviderId, defaultVoiceProvider?.id || '')).limit(1);
+      
+      const [defaultTranscriberProvider] = await tx.select().from(transcriberProviders).where(eq(transcriberProviders.isActive, true)).limit(1);
+      const [defaultTranscriberLanguage] = await tx.select().from(transcriberLanguages).where(eq(transcriberLanguages.transcriberProviderId, defaultTranscriberProvider?.id || '')).limit(1);
+      const [defaultTranscriberModel] = await tx.select().from(transcriberModels).where(eq(transcriberModels.transcriberProviderId, defaultTranscriberProvider?.id || '')).limit(1);
+
+      // Create default LLM configuration
+      if (defaultLlmProvider && defaultLlmModel) {
+        await tx.insert(llmConfigurations).values({
+          agentId: newAgent.id,
+          llmProviderId: defaultLlmProvider.id,
+          llmModelId: defaultLlmModel.id,
+          systemPrompt: "You are a helpful AI assistant. Be concise and helpful in your responses.",
+          temperature: 70, // Fixed: 70 represents 0.7 in integer scale
+          maxTokens: 2048,
+        });
+      }
+
+      // Create default voice configuration (removed non-existent voiceSettings)
+      if (defaultVoiceProvider && defaultVoice && defaultVoiceModel) {
+        await tx.insert(voiceConfigurations).values({
+          agentId: newAgent.id,
+          voiceProviderId: defaultVoiceProvider.id,
+          voiceId: defaultVoice.id,
+          voiceModelId: defaultVoiceModel.id,
+        });
+      }
+
+      // Create default transcriber configuration (removed non-existent transcriberSettings)
+      if (defaultTranscriberProvider && defaultTranscriberLanguage && defaultTranscriberModel) {
+        await tx.insert(transcriberConfigurations).values({
+          agentId: newAgent.id,
+          transcriberProviderId: defaultTranscriberProvider.id,
+          transcriberLanguageId: defaultTranscriberLanguage.id,
+          transcriberModelId: defaultTranscriberModel.id,
+        });
+      }
+
+      return newAgent;
+    });
   }
 
   async updateAgent(id: string, agent: Partial<InsertAgent>, tenantId: string): Promise<Agent | undefined> {
@@ -643,12 +722,8 @@ export class DatabaseStorage implements IStorage {
     // Update agent with new configuration, ensuring tenant scoping
     const updateData: Partial<Agent> = { updatedAt: new Date() };
     
-    if (config.llm?.prompt) {
-      updateData.prompt = config.llm.prompt;
-    }
-    if (config.voice?.voice) {
-      updateData.voice = config.voice.voice;
-    }
+    // Configuration is now handled by separate configuration tables
+    // TODO: Implement proper configuration updates using llmConfigurations, voiceConfigurations, etc.
     
     const [updatedAgent] = await db
       .update(agents)
