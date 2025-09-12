@@ -307,8 +307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = insertAgentPreferencesSchema.omit({ 
         agentId: true, 
-        createdAt: true, 
-        updatedAt: true 
+        createdAt: true 
       }).partial().parse(req.body);
       const preferences = await storage.updateAgentPreferences(req.params.id, validatedData, req.user!.tenantId);
       if (!preferences) {
