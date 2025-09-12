@@ -149,10 +149,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Initialize OpenAI client
-  const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
+  // Initialize OpenAI client conditionally
+  let openai: OpenAI | null = null;
+  if (process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  } else {
+    console.warn('⚠️  OpenAI API key not found. AI chat features will be disabled. Set OPENAI_API_KEY environment variable to enable.');
+  }
 
   // Widget API routes (public, no authentication required)
   // Get agent configuration and preferences for widget
@@ -353,14 +358,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Get AI response using gpt-4o (current stable model)
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages,
-        max_tokens: 500,
-        temperature: 0.7,
-      });
-
-      const aiResponse = response.choices[0].message.content || 'I apologize, but I was unable to generate a response. Please try again.';
+      let aiResponse: string;
+      
+      if (!openai) {
+        aiResponse = 'AI chat is currently unavailable. Please ensure the OpenAI API key is configured.';
+      } else {
+        try {
+          const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages,
+            max_tokens: 500,
+            temperature: 0.7,
+          });
+          aiResponse = response.choices[0].message.content || 'I apologize, but I was unable to generate a response. Please try again.';
+        } catch (error) {
+          console.error('OpenAI API error:', error);
+          aiResponse = 'I apologize, but I encountered an error while generating a response. Please try again.';
+        }
+      }
 
       // Save AI response as a message
       await storage.createMessage({
