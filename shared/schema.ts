@@ -28,13 +28,125 @@ export const agents = pgTable("agents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
   name: text("name").notNull(),
+  description: text("description"),
   type: text("type", { enum: ["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"] }).notNull(),
-  voice: text("voice").default("alloy"),
-  phoneNumber: text("phone_number"),
-  prompt: text("prompt"),
   isActive: boolean("is_active").default(false),
-  config: jsonb("config"),
   editedBy: varchar("edited_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Voice Providers
+export const voiceProviders = pgTable("voice_providers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  apiKey: text("api_key"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Voices
+export const voices = pgTable("voices", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  voiceProviderId: varchar("voice_provider_id").notNull(),
+  name: text("name").notNull(),
+  identifier: text("identifier").notNull(),
+  language: text("language"),
+  gender: text("gender"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Voice Models
+export const voiceModels = pgTable("voice_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  voiceProviderId: varchar("voice_provider_id").notNull(),
+  name: text("name").notNull(),
+  identifier: text("identifier").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// LLM Providers
+export const llmProviders = pgTable("llm_providers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  apiKey: text("api_key"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// LLM Models
+export const llmModels = pgTable("llm_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  llmProviderId: varchar("llm_provider_id").notNull(),
+  name: text("name").notNull(),
+  identifier: text("identifier").notNull(),
+  maxTokens: integer("max_tokens").default(4096),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Transcriber Providers
+export const transcriberProviders = pgTable("transcriber_providers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  apiKey: text("api_key"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Transcriber Languages
+export const transcriberLanguages = pgTable("transcriber_languages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Transcriber Models
+export const transcriberModels = pgTable("transcriber_models", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
+  name: text("name").notNull(),
+  identifier: text("identifier").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// LLM Configurations
+export const llmConfigurations = pgTable("llm_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(),
+  llmProviderId: varchar("llm_provider_id").notNull(),
+  llmModelId: varchar("llm_model_id").notNull(),
+  systemPrompt: text("system_prompt").notNull(),
+  maxTokens: integer("max_tokens").default(2048),
+  temperature: integer("temperature").default(70), // stored as integer (0-200 for 0.0-2.0)
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Transcriber Configurations
+export const transcriberConfigurations = pgTable("transcriber_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(),
+  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
+  transcriberModelId: varchar("transcriber_model_id").notNull(),
+  transcriberLanguageId: varchar("transcriber_language_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Voice Configurations
+export const voiceConfigurations = pgTable("voice_configurations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  agentId: varchar("agent_id").notNull(),
+  voiceProviderId: varchar("voice_provider_id").notNull(),
+  voiceId: varchar("voice_id").notNull(),
+  voiceModelId: varchar("voice_model_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -256,11 +368,8 @@ export const insertTenantSchema = createInsertSchema(tenants).pick({
 export const insertAgentSchema = createInsertSchema(agents).pick({
   tenantId: true,
   name: true,
+  description: true,
   type: true,
-  voice: true,
-  phoneNumber: true,
-  prompt: true,
-  config: true,
   editedBy: true,
 });
 

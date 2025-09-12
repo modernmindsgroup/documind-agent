@@ -46,6 +46,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { CreateAgentModal } from "@/components/CreateAgentModal";
 import type { Agent } from "@shared/schema";
 
 // Validation schemas for configuration forms
@@ -79,6 +80,7 @@ export default function AgentsPage() {
   const [activeTab, setActiveTab] = useState("stats");
   const [configSection, setConfigSection] = useState("llm");
   const [copiedWidget, setCopiedWidget] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Fetch agents
   const { data: agents = [], isLoading, isError, error } = useQuery<Agent[]>({
@@ -309,7 +311,7 @@ export default function AgentsPage() {
           <p className="text-muted-foreground mb-4">
             Create your first AI agent to get started.
           </p>
-          <Button>
+          <Button onClick={() => setIsCreateModalOpen(true)} data-testid="button-create-agent">
             <Plus className="h-4 w-4 mr-2" />
             Create Agent
           </Button>
@@ -325,7 +327,7 @@ export default function AgentsPage() {
         <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold">Agents</h2>
-            <Button size="sm" variant="outline">
+            <Button size="sm" variant="outline" onClick={() => setIsCreateModalOpen(true)} data-testid="button-create-agent-sidebar">
               <Plus className="h-4 w-4 mr-2" />
               Create
             </Button>
@@ -1083,6 +1085,11 @@ export default function AgentsPage() {
           </>
         )}
       </div>
+      
+      <CreateAgentModal 
+        open={isCreateModalOpen} 
+        onOpenChange={setIsCreateModalOpen}
+      />
     </div>
   );
 }
