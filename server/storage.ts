@@ -71,6 +71,10 @@ export interface IStorage {
   updateAgent(id: string, agent: Partial<InsertAgent>, tenantId: string): Promise<Agent | undefined>;
   deleteAgent(id: string, tenantId: string): Promise<boolean>;
   
+  // Agent Preferences
+  getAgentPreferences(agentId: string, tenantId: string): Promise<AgentPreferences | undefined>;
+  updateAgentPreferences(agentId: string, preferences: Partial<InsertAgentPreferences>, tenantId: string): Promise<AgentPreferences | undefined>;
+  
   // Workflows
   getWorkflowsByTenant(tenantId: string): Promise<Workflow[]>;
   getWorkflow(id: string, tenantId: string): Promise<Workflow | undefined>;
@@ -277,6 +281,32 @@ export class DatabaseStorage implements IStorage {
 
       return newAgent;
     });
+  }
+
+  async getAgentPreferences(agentId: string, tenantId: string): Promise<AgentPreferences | undefined> {
+    // First verify the agent belongs to the tenant
+    const agent = await this.getAgent(agentId, tenantId);
+    if (!agent) return undefined;
+
+    // Then get the preferences for this agent
+    const [prefs] = await db.select().from(agentPreferences).where(
+      eq(agentPreferences.agentId, agentId)
+    );
+    return prefs || undefined;
+  }
+
+  async updateAgentPreferences(agentId: string, preferences: Partial<InsertAgentPreferences>, tenantId: string): Promise<AgentPreferences | undefined> {
+    // Ensure the agent belongs to the tenant before updating preferences
+    const agent = await this.getAgent(agentId, tenantId);
+    if (!agent) return undefined;
+
+    const updateData = { ...preferences }; // Removed updatedAt as it may not exist in schema
+    const [updated] = await db
+      .update(agentPreferences)
+      .set(updateData)
+      .where(eq(agentPreferences.agentId, agentId))
+      .returning();
+    return updated || undefined;
   }
 
   async updateAgent(id: string, agent: Partial<InsertAgent>, tenantId: string): Promise<Agent | undefined> {

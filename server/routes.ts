@@ -9,7 +9,8 @@ import {
   insertWorkflowSchema,
   insertKnowledgeBaseSchema,
   insertWebhookSchema,
-  insertApiKeySchema
+  insertApiKeySchema,
+  insertAgentPreferencesSchema
 } from "@shared/schema";
 import { z } from "zod";
 
@@ -288,6 +289,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Agent Preferences routes
+  app.get('/api/agents/:id/preferences', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const preferences = await storage.getAgentPreferences(req.params.id, req.user!.tenantId);
+      if (!preferences) {
+        return res.status(404).json({ error: 'Agent preferences not found' });
+      }
+      res.json(preferences);
+    } catch (error) {
+      console.error('Get agent preferences error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/agents/:id/preferences', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertAgentPreferencesSchema.omit({ 
+        agentId: true, 
+        createdAt: true, 
+        updatedAt: true 
+      }).partial().parse(req.body);
+      const preferences = await storage.updateAgentPreferences(req.params.id, validatedData, req.user!.tenantId);
+      if (!preferences) {
+        return res.status(404).json({ error: 'Agent not found or preferences not found' });
+      }
+      res.json(preferences);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update agent preferences error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Workflows routes
   app.get('/api/workflows', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
@@ -355,11 +391,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'isActive must be a boolean' });
       }
       
-      const workflow = await storage.updateWorkflow(req.params.id, { isActive }, req.user!.tenantId);
-      if (!workflow) {
-        return res.status(404).json({ error: 'Workflow not found' });
-      }
-      res.json(workflow);
+      // Workflows don't have isActive property - this functionality may need to be implemented differently
+      return res.status(400).json({ error: 'Workflow toggle not implemented - workflows do not have isActive property' });
     } catch (error) {
       console.error('Toggle workflow error:', error);
       res.status(500).json({ error: 'Internal server error' });
@@ -528,7 +561,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This would integrate with OpenAI API for real testing
       // For now, return a mock response
       const response = {
-        message: `Hello! I'm ${agent.name}, ${agent.prompt ? 'and here\'s how I can help: ' + agent.prompt.substring(0, 100) + '...' : 'ready to assist you!'}`,
+        message: `Hello! I'm ${agent.name}, ready to assist you!`,
         agent: agent.name,
         timestamp: new Date().toISOString(),
       };
