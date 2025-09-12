@@ -39,7 +39,7 @@ export function AgentManagement() {
 
   // Delete agent mutation
   const deleteMutation = useMutation({
-    mutationFn: (agentId: string) => apiRequest(`/api/agents/${agentId}`, 'DELETE'),
+    mutationFn: (agentId: string) => apiRequest('DELETE', `/api/agents/${agentId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/agents'] });
       toast({
@@ -59,7 +59,7 @@ export function AgentManagement() {
   // Toggle agent active status
   const toggleActiveMutation = useMutation({
     mutationFn: ({ agentId, isActive }: { agentId: string; isActive: boolean }) => 
-      apiRequest(`/api/agents/${agentId}`, 'PUT', { isActive }),
+      apiRequest('PUT', `/api/agents/${agentId}`, { isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/agents'] });
       toast({
@@ -282,23 +282,18 @@ export function AgentManagement() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                {agent.prompt || 'No description available'}
+                {agent.description || 'No description available'}
               </p>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span className="flex items-center">
-                  {agent.phoneNumber && (
-                    <span className="flex items-center mr-3">
-                      <Phone className="h-3 w-3 mr-1" />
-                      Phone
-                    </span>
-                  )}
+                  {/* Phone number not available in agent schema */}
                   <span className="flex items-center">
                     <Settings className="h-3 w-3 mr-1" />
                     {agent.type.replace('_', ' ')}
                   </span>
                 </span>
                 <span>
-                  Voice: {agent.voice || 'alloy'}
+                  Voice: Configuration based
                 </span>
               </div>
             </CardContent>

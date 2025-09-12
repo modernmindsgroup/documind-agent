@@ -88,12 +88,25 @@ export default function AgentsPage() {
   });
 
   // Fetch agent-specific data
-  const { data: agentStats, isLoading: statsLoading } = useQuery({
+  const { data: agentStats, isLoading: statsLoading } = useQuery<{
+    totalCalls: number;
+    totalChats: number;
+    successRate: number;
+    averageDuration: number;
+    weeklyGrowth: number;
+  }>({
     queryKey: ['/api/agents', selectedAgent?.id, 'stats'],
     enabled: !!selectedAgent?.id,
   });
 
-  const { data: agentActivity = [], isLoading: activityLoading } = useQuery({
+  const { data: agentActivity = [], isLoading: activityLoading } = useQuery<Array<{
+    id: string;
+    type: string;
+    status: string;
+    duration?: number;
+    phoneNumber?: string;
+    createdAt: string;
+  }>>({
     queryKey: ['/api/agents', selectedAgent?.id, 'activity'],
     enabled: !!selectedAgent?.id,
   });
@@ -101,10 +114,7 @@ export default function AgentsPage() {
   // Mutations for agent actions
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ agentId, isActive }: { agentId: string; isActive: boolean }) => {
-      return await apiRequest(`/api/agents/${agentId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ isActive }),
-      });
+      return await apiRequest('PATCH', `/api/agents/${agentId}/status`, { isActive });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/agents'] });
@@ -124,10 +134,7 @@ export default function AgentsPage() {
 
   const saveConfigMutation = useMutation({
     mutationFn: async ({ agentId, config }: { agentId: string; config: any }) => {
-      return await apiRequest(`/api/agents/${agentId}/configuration`, {
-        method: 'PATCH',
-        body: JSON.stringify(config),
-      });
+      return await apiRequest('PATCH', `/api/agents/${agentId}/configuration`, config);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/agents'] });
@@ -158,7 +165,7 @@ export default function AgentsPage() {
     defaultValues: {
       provider: "openai",
       model: "gpt-4",
-      prompt: selectedAgent?.prompt || "",
+      prompt: selectedAgent?.description || "",
       maxTokens: 2048,
       temperature: 0.7,
     },
@@ -177,7 +184,7 @@ export default function AgentsPage() {
     resolver: zodResolver(voiceConfigSchema),
     defaultValues: {
       provider: "elevenlabs",
-      voice: selectedAgent?.voice || "alloy",
+      voice: "alloy", // Voice will be fetched from configuration
       model: "eleven_multilingual_v2",
     },
   });
@@ -188,13 +195,13 @@ export default function AgentsPage() {
       llmForm.reset({
         provider: "openai",
         model: "gpt-4",
-        prompt: selectedAgent.prompt || "",
+        prompt: selectedAgent.description || "",
         maxTokens: 2048,
         temperature: 0.7,
       });
       voiceForm.reset({
         provider: "elevenlabs",
-        voice: selectedAgent.voice || "alloy",
+        voice: "alloy", // Voice will be fetched from configuration
         model: "eleven_multilingual_v2",
       });
     }
@@ -204,7 +211,7 @@ export default function AgentsPage() {
     if (!selectedAgent) return;
     toggleStatusMutation.mutate({
       agentId: selectedAgent.id,
-      isActive: !selectedAgent.isActive,
+      isActive: !(selectedAgent.isActive ?? false),
     });
   };
 
@@ -351,25 +358,19 @@ export default function AgentsPage() {
                     {agent.name}
                   </h3>
                   <Badge 
-                    variant={agent.isActive ? "default" : "secondary"}
+                    variant={!!agent.isActive ? "default" : "secondary"}
                     className="text-xs"
                   >
                     <div className={cn("w-1.5 h-1.5 rounded-full mr-1", 
-                      agent.isActive ? "bg-green-500" : "bg-yellow-500"
+                      !!agent.isActive ? "bg-green-500" : "bg-yellow-500"
                     )} />
-                    {getStatusText(agent.isActive)}
+                    {getStatusText(!!agent.isActive)}
                   </Badge>
                 </div>
                 <div className="flex items-center text-xs text-muted-foreground">
                   <Bot className="h-3 w-3 mr-1" />
                   <span className="capitalize">{agent.type.replace('_', ' ')}</span>
-                  {agent.phoneNumber && (
-                    <>
-                      <span className="mx-2">•</span>
-                      <Phone className="h-3 w-3 mr-1" />
-                      <span>Voice</span>
-                    </>
-                  )}
+                  {/* Phone integration would go here when implemented */}
                 </div>
               </CardContent>
             </Card>
@@ -388,17 +389,17 @@ export default function AgentsPage() {
                   <div className="flex items-center gap-3 mb-2">
                     <h1 className="text-2xl font-bold">{selectedAgent.name}</h1>
                     <Badge 
-                      variant={selectedAgent.isActive ? "default" : "secondary"}
-                      className={getStatusColor(selectedAgent.isActive)}
+                      variant={!!selectedAgent.isActive ? "default" : "secondary"}
+                      className={getStatusColor(!!selectedAgent.isActive)}
                     >
                       <div className={cn("w-2 h-2 rounded-full mr-2", 
-                        selectedAgent.isActive ? "bg-green-500" : "bg-yellow-500"
+                        !!selectedAgent.isActive ? "bg-green-500" : "bg-yellow-500"
                       )} />
-                      {getStatusText(selectedAgent.isActive)}
+                      {getStatusText(!!selectedAgent.isActive)}
                     </Badge>
                   </div>
                   <p className="text-muted-foreground">
-                    {selectedAgent.prompt || "No description available"}
+                    {selectedAgent.description || "No description available"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -407,13 +408,13 @@ export default function AgentsPage() {
                     Settings
                   </Button>
                   <Button 
-                    variant={selectedAgent.isActive ? "secondary" : "default"} 
+                    variant={!!selectedAgent.isActive ? "secondary" : "default"} 
                     size="sm"
                     onClick={handleToggleStatus}
                     disabled={toggleStatusMutation.isPending}
                     data-testid="button-agent-toggle-status"
                   >
-                    {selectedAgent.isActive ? (
+                    {!!selectedAgent.isActive ? (
                       <>
                         <Pause className="h-4 w-4 mr-2" />
                         {toggleStatusMutation.isPending ? 'Pausing...' : 'Pause'}
@@ -467,7 +468,7 @@ export default function AgentsPage() {
                           {statsLoading ? (
                             <Skeleton className="h-3 w-16" />
                           ) : (
-                            `${agentStats?.weeklyGrowth > 0 ? '+' : ''}${(agentStats?.weeklyGrowth * 100)?.toFixed(1) || 0}% from last week`
+                            `${(agentStats?.weeklyGrowth ?? 0) > 0 ? '+' : ''}${((agentStats?.weeklyGrowth ?? 0) * 100).toFixed(1)}% from last week`
                           )}
                         </p>
                       </CardContent>
@@ -498,7 +499,7 @@ export default function AgentsPage() {
                           <Skeleton className="h-8 w-20 mb-2" />
                         ) : (
                           <div className="text-2xl font-bold" data-testid="stat-success-rate">
-                            {(agentStats?.successRate * 100)?.toFixed(1) || 0}%
+                            {((agentStats?.successRate ?? 0) * 100).toFixed(1)}%
                           </div>
                         )}
                         <p className="text-xs text-muted-foreground">
@@ -578,9 +579,7 @@ export default function AgentsPage() {
                                       {activity.status}
                                       {activity.duration && ` (${Math.floor(activity.duration / 60)}:${String(activity.duration % 60).padStart(2, '0')})`}
                                     </p>
-                                    {activity.phoneNumber && (
-                                      <p className="text-xs text-muted-foreground">{activity.phoneNumber}</p>
-                                    )}
+                                    {/* Phone number would be shown here if available */}
                                   </div>
                                 </div>
                                 <span className="text-xs text-muted-foreground">

@@ -79,11 +79,11 @@ export function AgentForm({ agent, template, onSaved, onCancel }: AgentFormProps
       return {
         name: agent.name,
         type: agent.type as "conversation_flow" | "single_prompt" | "multi_prompt" | "custom_llm",
-        voice: agent.voice || "alloy",
-        phoneNumber: agent.phoneNumber || "",
-        prompt: agent.prompt || "",
+        voice: "alloy", // Voice will be loaded from configuration
+        phoneNumber: "", // Phone number not part of agent schema
+        prompt: agent.description || "",
         isActive: agent.isActive ?? false,
-        config: agent.config || {},
+        config: {}, // Configuration handled separately
       };
     }
     
@@ -117,7 +117,7 @@ export function AgentForm({ agent, template, onSaved, onCancel }: AgentFormProps
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: AgentFormData) => apiRequest('/api/agents', 'POST', data),
+    mutationFn: (data: AgentFormData) => apiRequest('POST', '/api/agents', data),
     onSuccess: () => {
       toast({
         title: "Agent created",
@@ -139,7 +139,7 @@ export function AgentForm({ agent, template, onSaved, onCancel }: AgentFormProps
 
   const updateMutation = useMutation({
     mutationFn: (data: AgentFormData) => 
-      apiRequest(`/api/agents/${agent!.id}`, 'PUT', data),
+      apiRequest('PUT', `/api/agents/${agent!.id}`, data),
     onSuccess: () => {
       toast({
         title: "Agent updated",
