@@ -41,12 +41,14 @@ import {
   Copy, 
   Check,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  User
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { CreateAgentModal } from "@/components/CreateAgentModal";
+import { Switch } from "@/components/ui/switch";
 import type { Agent } from "@shared/schema";
 
 // Validation schemas for configuration forms
@@ -70,9 +72,17 @@ const voiceConfigSchema = z.object({
   model: z.string(),
 });
 
+const preferencesSchema = z.object({
+  isContactRequired: z.boolean(),
+  displayName: z.string().min(1, "Display name is required"),
+  logo: z.string().url().optional().or(z.literal("")),
+  widgetTheme: z.enum(["light", "dark", "auto"]),
+});
+
 type LLMConfig = z.infer<typeof llmConfigSchema>;
 type TranscriberConfig = z.infer<typeof transcriberConfigSchema>;
 type VoiceConfig = z.infer<typeof voiceConfigSchema>;
+type PreferencesConfig = z.infer<typeof preferencesSchema>;
 
 export default function AgentsPage() {
   const { toast } = useToast();
@@ -108,6 +118,17 @@ export default function AgentsPage() {
     createdAt: string;
   }>>({
     queryKey: ['/api/agents', selectedAgent?.id, 'activity'],
+    enabled: !!selectedAgent?.id,
+  });
+
+  // Fetch agent preferences
+  const { data: agentPreferences, isLoading: preferencesLoading } = useQuery<{
+    isContactRequired: boolean;
+    displayName: string;
+    logo: string | null;
+    widgetTheme: 'light' | 'dark' | 'auto';
+  }>({
+    queryKey: ['/api/agents', selectedAgent?.id, 'preferences'],
     enabled: !!selectedAgent?.id,
   });
 
@@ -152,6 +173,27 @@ export default function AgentsPage() {
     },
   });
 
+  // Preferences mutation
+  const savePreferencesMutation = useMutation({
+    mutationFn: async ({ agentId, preferences }: { agentId: string; preferences: PreferencesConfig }) => {
+      return await apiRequest('PUT', `/api/agents/${agentId}/preferences`, preferences);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/agents', selectedAgent?.id, 'preferences'] });
+      toast({
+        title: "Preferences saved",
+        description: "Agent preferences have been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error saving preferences",
+        description: "Failed to save preferences. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Select first agent by default
   useEffect(() => {
     if (agents.length > 0 && !selectedAgent) {
@@ -189,7 +231,17 @@ export default function AgentsPage() {
     },
   });
 
-  // Update forms when selected agent changes
+  const preferencesForm = useForm<PreferencesConfig>({
+    resolver: zodResolver(preferencesSchema),
+    defaultValues: {
+      isContactRequired: agentPreferences?.isContactRequired ?? false,
+      displayName: agentPreferences?.displayName || selectedAgent?.name || "",
+      logo: agentPreferences?.logo || "",
+      widgetTheme: agentPreferences?.widgetTheme || "light",
+    },
+  });
+
+  // Update forms when selected agent or preferences change
   useEffect(() => {
     if (selectedAgent) {
       llmForm.reset({
@@ -204,8 +256,14 @@ export default function AgentsPage() {
         voice: "alloy", // Voice will be fetched from configuration
         model: "eleven_multilingual_v2",
       });
+      preferencesForm.reset({
+        isContactRequired: agentPreferences?.isContactRequired ?? false,
+        displayName: agentPreferences?.displayName || selectedAgent.name || "",
+        logo: agentPreferences?.logo || "",
+        widgetTheme: agentPreferences?.widgetTheme || "light",
+      });
     }
-  }, [selectedAgent, llmForm, voiceForm]);
+  }, [selectedAgent, agentPreferences, llmForm, voiceForm, preferencesForm]);
 
   const handleToggleStatus = () => {
     if (!selectedAgent) return;
@@ -236,6 +294,14 @@ export default function AgentsPage() {
     saveConfigMutation.mutate({
       agentId: selectedAgent.id,
       config: { voice: data },
+    });
+  };
+
+  const handleSavePreferences = (data: PreferencesConfig) => {
+    if (!selectedAgent) return;
+    savePreferencesMutation.mutate({
+      agentId: selectedAgent.id,
+      preferences: data,
     });
   };
 
@@ -441,6 +507,10 @@ export default function AgentsPage() {
                   <TabsTrigger value="configuration" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
                     Configuration
+                  </TabsTrigger>
+                  <TabsTrigger value="preferences" className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Preferences
                   </TabsTrigger>
                   <TabsTrigger value="widget" className="flex items-center gap-2">
                     <Code2 className="h-4 w-4" />
@@ -1025,6 +1095,131 @@ export default function AgentsPage() {
                       )}
                     </div>
                   </div>
+                </TabsContent>
+
+                <TabsContent value="preferences" className="p-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Agent Preferences</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Configure how your agent interacts with users and displays in the widget.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {preferencesLoading ? (
+                        <div className="space-y-4">
+                          <Skeleton className="h-4 w-32" />
+                          <Skeleton className="h-10 w-full" />
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-10 w-full" />
+                        </div>
+                      ) : (
+                        <Form {...preferencesForm}>
+                          <form onSubmit={preferencesForm.handleSubmit(handleSavePreferences)} className="space-y-6">
+                            <FormField
+                              control={preferencesForm.control}
+                              name="displayName"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Display Name</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="Agent name displayed in widget"
+                                      {...field}
+                                      data-testid="input-display-name"
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    This is how your agent will be introduced to users
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={preferencesForm.control}
+                              name="logo"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Logo URL</FormLabel>
+                                  <FormControl>
+                                    <Input
+                                      placeholder="https://example.com/logo.png"
+                                      {...field}
+                                      data-testid="input-logo"
+                                    />
+                                  </FormControl>
+                                  <FormDescription>
+                                    Avatar image displayed in the widget chat
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={preferencesForm.control}
+                              name="widgetTheme"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Widget Theme</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-widget-theme">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="light">Light</SelectItem>
+                                      <SelectItem value="dark">Dark</SelectItem>
+                                      <SelectItem value="auto">Auto</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>
+                                    Color theme for the widget interface
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={preferencesForm.control}
+                              name="isContactRequired"
+                              render={({ field }) => (
+                                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                                  <div className="space-y-0.5">
+                                    <FormLabel className="text-base">
+                                      Require Contact Information
+                                    </FormLabel>
+                                    <FormDescription>
+                                      Users must provide their contact details before chatting
+                                    </FormDescription>
+                                  </div>
+                                  <FormControl>
+                                    <Switch
+                                      checked={field.value}
+                                      onCheckedChange={field.onChange}
+                                      data-testid="switch-contact-required"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            <Button 
+                              type="submit" 
+                              disabled={savePreferencesMutation.isPending}
+                              data-testid="button-save-preferences"
+                            >
+                              {savePreferencesMutation.isPending ? 'Saving...' : 'Save Preferences'}
+                            </Button>
+                          </form>
+                        </Form>
+                      )}
+                    </CardContent>
+                  </Card>
                 </TabsContent>
 
                 <TabsContent value="widget" className="p-6">
