@@ -1,0 +1,1076 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HomeAfrika - Houses Become Homes</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary-gold: #E5A630;
+      --primary-brown: #66412A;
+      --primary-red: #BB2D3B;
+      --light-beige: #F5F0E6;
+      --dark-gray: #333333;
+      --white: #FFFFFF;
+      --transition: all 0.3s ease;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+    
+    body {
+      background-color: var(--white);
+      color: var(--dark-gray);
+      line-height: 1.6;
+    }
+    
+    /* Header Styles */
+    header {
+      background-color: var(--white);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      position: fixed;
+      width: 100%;
+      z-index: 1000;
+    }
+    
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 5%;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .logo {
+      height: 50px;
+    }
+    
+    .nav-menu {
+      display: flex;
+      list-style: none;
+    }
+    
+    .nav-item {
+      margin-left: 30px;
+    }
+    
+    .nav-link {
+      text-decoration: none;
+      color: var(--primary-brown);
+      font-weight: 500;
+      font-size: 16px;
+      transition: var(--transition);
+      position: relative;
+    }
+    
+    .nav-link:after {
+      content: '';
+      position: absolute;
+      width: 0;
+      height: 2px;
+      bottom: -5px;
+      left: 0;
+      background-color: var(--primary-gold);
+      transition: var(--transition);
+    }
+    
+    .nav-link:hover {
+      color: var(--primary-gold);
+    }
+    
+    .nav-link:hover:after {
+      width: 100%;
+    }
+    
+    .cta-button {
+      background-color: var(--primary-gold);
+      color: var(--white);
+      padding: 10px 20px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: var(--transition);
+      border: 2px solid var(--primary-gold);
+    }
+    
+    .cta-button:hover {
+      background-color: transparent;
+      color: var(--primary-gold);
+    }
+    
+    .mobile-toggle {
+      display: none;
+      cursor: pointer;
+      font-size: 24px;
+      color: var(--primary-brown);
+    }
+    
+    /* Hero Section */
+    .hero {
+      background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('https://www.homeafrika.com/wp-content/uploads/2025/04/HA-M2.jpeg');
+      background-size: cover;
+      background-position: center;
+      height: 85vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--white);
+      padding-top: 80px;
+    }
+    
+    .hero-content {
+      max-width: 800px;
+      padding: 0 20px;
+    }
+    
+    .hero h1 {
+      font-size: 48px;
+      margin-bottom: 20px;
+      font-weight: 800;
+    }
+    
+    .hero p {
+      font-size: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .secondary-button {
+      background-color: transparent;
+      color: var(--white);
+      padding: 10px 20px;
+      border-radius: 30px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: var(--transition);
+      border: 2px solid var(--white);
+    }
+    
+    .secondary-button:hover {
+      background-color: var(--white);
+      color: var(--primary-brown);
+    }
+    
+    /* About Section */
+    .about {
+      padding: 100px 5%;
+      background-color: var(--light-beige);
+    }
+    
+    .section-title {
+      text-align: center;
+      margin-bottom: 60px;
+      position: relative;
+    }
+    
+    .section-title h2 {
+      font-size: 36px;
+      color: var(--primary-brown);
+      display: inline-block;
+    }
+    
+    .section-title h2:after {
+      content: '';
+      position: absolute;
+      height: 3px;
+      width: 80px;
+      background-color: var(--primary-gold);
+      bottom: -15px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    
+    .about-content {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .about-text {
+      flex: 1;
+      padding-right: 50px;
+      min-width: 300px;
+    }
+    
+    .about-image {
+      flex: 1;
+      min-width: 300px;
+      height: 400px;
+      background-image: url('https://www.homeafrika.com/wp-content/uploads/2024/08/IMG_1499-scaled.jpg');
+      background-size: cover;
+      background-position: center;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .values {
+      margin-top: 60px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      gap: 20px;
+    }
+    
+    .value-card {
+      background-color: var(--white);
+      border-radius: 10px;
+      padding: 30px;
+      text-align: center;
+      flex: 1 1 200px;
+      max-width: 250px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+    
+    .value-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .value-icon {
+      font-size: 36px;
+      color: var(--primary-gold);
+      margin-bottom: 15px;
+    }
+    
+    .value-card h3 {
+      margin-bottom: 10px;
+      color: var(--primary-brown);
+    }
+    
+    /* Projects Section */
+    .projects {
+      padding: 100px 5%;
+    }
+    
+    .project-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 30px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .project-card {
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+      transition: var(--transition);
+      background-color: var(--white);
+    }
+    
+    .project-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    }
+    
+    .project-image {
+      height: 250px;
+      background-size: cover;
+      background-position: center;
+    }
+    
+    .project-details {
+      padding: 25px;
+    }
+    
+    .project-title {
+      font-size: 22px;
+      margin-bottom: 10px;
+      color: var(--primary-brown);
+    }
+    
+    .project-location {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+      color: var(--dark-gray);
+    }
+    
+    .project-location i {
+      color: var(--primary-gold);
+      margin-right: 10px;
+    }
+    
+    .project-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary-gold);
+      margin-bottom: 15px;
+    }
+    
+    .project-features {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    
+    .feature {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .feature i {
+      font-size: 18px;
+      color: var(--primary-brown);
+      margin-bottom: 5px;
+    }
+    
+    .project-link {
+      display: inline-block;
+      padding: 10px 20px;
+      background-color: var(--primary-brown);
+      color: var(--white);
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: 500;
+      transition: var(--transition);
+    }
+    
+    .project-link:hover {
+      background-color: var(--primary-gold);
+    }
+    
+    /* Why Choose Us Section */
+    .why-us {
+      padding: 100px 5%;
+      background-color: var(--light-beige);
+    }
+    
+    .reasons {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 1200px;
+      margin: 0 auto;
+      gap: 30px;
+    }
+    
+    .reason-card {
+      background-color: var(--white);
+      border-radius: 10px;
+      padding: 30px;
+      text-align: center;
+      flex: 1 1 300px;
+      max-width: 350px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+      transition: var(--transition);
+    }
+    
+    .reason-card:hover {
+      transform: translateY(-10px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+    
+    .reason-icon {
+      font-size: 40px;
+      color: var(--primary-gold);
+      margin-bottom: 20px;
+    }
+    
+    .reason-card h3 {
+      margin-bottom: 15px;
+      color: var(--primary-brown);
+    }
+    
+    /* Call To Action Section */
+    .cta {
+      padding: 80px 5%;
+      background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('/api/placeholder/1600/600');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      text-align: center;
+      color: var(--white);
+    }
+    
+    .cta h2 {
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    
+    .cta p {
+      font-size: 18px;
+      max-width: 700px;
+      margin: 0 auto 30px;
+    }
+    
+    /* Contact Section */
+    .contact {
+      padding: 100px 5%;
+    }
+    
+    .contact-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .contact-info {
+      flex: 1;
+      min-width: 300px;
+      padding-right: 50px;
+    }
+    
+    .contact-info h3 {
+      font-size: 24px;
+      margin-bottom: 20px;
+      color: var(--primary-brown);
+    }
+    
+    .contact-detail {
+      display: flex;
+      align-items: center;
+      margin-bottom: 25px;
+    }
+    
+    .contact-icon {
+      background-color: var(--primary-gold);
+      color: var(--white);
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-right: 15px;
+      font-size: 20px;
+    }
+    
+    .social-links {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+    }
+    
+    .social-link {
+      background-color: var(--light-beige);
+      color: var(--primary-brown);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: var(--transition);
+    }
+    
+    .social-link:hover {
+      background-color: var(--primary-gold);
+      color: var(--white);
+    }
+    
+    .contact-form {
+      flex: 1;
+      min-width: 300px;
+      background-color: var(--white);
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 5px 30px rgba(0, 0, 0, 0.1);
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: var(--primary-brown);
+    }
+    
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    
+    .form-group textarea {
+      height: 120px;
+      resize: vertical;
+    }
+    
+    .submit-button {
+      background-color: var(--primary-gold);
+      color: var(--white);
+      padding: 12px 25px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .submit-button:hover {
+      background-color: var(--primary-brown);
+    }
+    
+    /* Footer */
+    footer {
+      background-color: var(--primary-brown);
+      color: var(--white);
+      padding: 60px 5% 20px;
+    }
+    
+    .footer-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .footer-column {
+      flex: 1;
+      min-width: 250px;
+      margin-bottom: 30px;
+    }
+    
+    .footer-column h3 {
+      font-size: 20px;
+      margin-bottom: 20px;
+      position: relative;
+      padding-bottom: 10px;
+    }
+    
+    .footer-column h3:after {
+      content: '';
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 40px;
+      height: 2px;
+      background-color: var(--primary-gold);
+    }
+    
+    .footer-links {
+      list-style: none;
+    }
+    
+    .footer-link {
+      margin-bottom: 12px;
+    }
+    
+    .footer-link a {
+      color: #ccc;
+      text-decoration: none;
+      transition: var(--transition);
+    }
+    
+    .footer-link a:hover {
+      color: var(--primary-gold);
+      padding-left: 5px;
+    }
+    
+    .footer-newsletter p {
+      margin-bottom: 20px;
+    }
+    
+    .newsletter-form {
+      display: flex;
+    }
+    
+    .newsletter-input {
+      flex: 1;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 5px 0 0 5px;
+    }
+    
+    .newsletter-button {
+      background-color: var(--primary-gold);
+      color: var(--white);
+      border: none;
+      padding: 0 15px;
+      border-radius: 0 5px 5px 0;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .newsletter-button:hover {
+      background-color: #D89521;
+    }
+    
+    .footer-bottom {
+      text-align: center;
+      padding-top: 40px;
+      margin-top: 40px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Responsive Styles */
+    @media (max-width: 991px) {
+      .about-text {
+        padding-right: 0;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      
+      .about-content {
+        flex-direction: column;
+      }
+      
+      .contact-info {
+        padding-right: 0;
+        margin-bottom: 40px;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .header-container {
+        padding: 15px 20px;
+      }
+      
+      .nav-menu {
+        position: fixed;
+        top: 80px;
+        left: -100%;
+        flex-direction: column;
+        background-color: var(--white);
+        width: 100%;
+        box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
+        transition: var(--transition);
+        padding: 20px 0;
+      }
+      
+      .nav-menu.active {
+        left: 0;
+      }
+      
+      .nav-item {
+        margin: 10px 0;
+        text-align: center;
+      }
+      
+      .mobile-toggle {
+        display: block;
+      }
+      
+      .hero h1 {
+        font-size: 36px;
+      }
+      
+      .hero p {
+        font-size: 18px;
+      }
+      
+      .section-title h2 {
+        font-size: 30px;
+      }
+      
+      .project-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .hero-buttons {
+        flex-direction: column;
+        gap: 15px;
+      }
+      
+      .cta-button, .secondary-button {
+        width: 100%;
+      }
+      
+      .hero h1 {
+        font-size: 28px;
+      }
+      
+      .contact-form {
+        padding: 25px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header>
+    <div class="header-container">
+      <img src="https://www.homeafrika.com/wp-content/uploads/2023/06/ke-hafr-logo-min.webp" alt="HomeAfrika Logo" class="logo">
+      <div class="mobile-toggle">
+        <i class="fas fa-bars"></i>
+      </div>
+      <ul class="nav-menu">
+        <li class="nav-item"><a href="#" class="nav-link">Home</a></li>
+        <li class="nav-item"><a href="#about" class="nav-link">About Us</a></li>
+        <li class="nav-item"><a href="#projects" class="nav-link">Projects</a></li>
+        <li class="nav-item"><a href="#contact" class="nav-link">Contact</a></li>
+        <li class="nav-item"><a href="#" class="cta-button">Invest Now</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <h1>Dignified Planned Communities Across Africa</h1>
+      <p>Transforming how Africans live by creating sustainable, modern communities where houses truly become homes.</p>
+      <div class="hero-buttons">
+        <a href="#projects" class="cta-button">Explore Properties</a>
+        <a href="#contact" class="secondary-button">Get In Touch</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- About Section -->
+  <section class="about" id="about">
+    <div class="section-title">
+      <h2>About HomeAfrika</h2>
+    </div>
+    <div class="about-content">
+      <div class="about-text">
+        <p>Home Afrika Ltd is a public listed Real Estate development company based in Nairobi, Kenya incorporated in 2008 with a vision of providing dignified planned communities across Africa.</p>
+        <p>Founded on key principles of 'Homes for All' and 'Economic Empowerment', we are committed to addressing housing needs in Africa by following principles of long-term positive societal impact, creating synergies in our partnerships, integrity, fairness, and discipline.</p>
+        <p>Since our inception, we have made significant steps towards the actualization of our vision by undertaking various projects, some of which are already complete and sold out.</p>
+      </div>
+      <div class="about-image"></div>
+    </div>
+    <div class="values">
+      <div class="value-card">
+        <div class="value-icon">
+          <i class="fas fa-heart"></i>
+        </div>
+        <h3>Passion</h3>
+        <p>Emotional connection to fulfilling client needs through dedicated service.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">
+          <i class="fas fa-handshake"></i>
+        </div>
+        <h3>Respect</h3>
+        <p>Consideration for all stakeholders in our work-related interactions.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">
+          <i class="fas fa-lightbulb"></i>
+        </div>
+        <h3>Innovation</h3>
+        <p>Developing new values through creative solutions to market needs.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <h3>Excellence</h3>
+        <p>Continuous improvement that surpasses ordinary standards.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projects Section -->
+  <section class="projects" id="projects">
+    <div class="section-title">
+      <h2>Our Featured Projects</h2>
+    </div>
+    <div class="project-grid">
+      <div class="project-card">
+        <div class="project-image" style="background-image: url('/api/placeholder/400/250');"></div>
+        <div class="project-details">
+          <h3 class="project-title">Noble Park 2</h3>
+          <div class="project-location">
+            <i class="fas fa-map-marker-alt"></i>
+            <p>Koma, off Kangundo Road</p>
+          </div>
+          <p class="project-price">From KSh. 2,000,000</p>
+          <div class="project-features">
+            <div class="feature">
+              <i class="fas fa-ruler-combined"></i>
+              <span>1/4 Acre</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-mountain"></i>
+              <span>Hill View</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-water"></i>
+              <span>Water</span>
+            </div>
+          </div>
+          <a href="#" class="project-link">View Details</a>
+        </div>
+      </div>
+      <div class="project-card">
+        <div class="project-image" style="background-image: url('/api/placeholder/400/250');"></div>
+        <div class="project-details">
+          <h3 class="project-title">Migaa Golf Estate</h3>
+          <div class="project-location">
+            <i class="fas fa-map-marker-alt"></i>
+            <p>Kiambu County</p>
+          </div>
+          <p class="project-price">From KSh. 3,500,000</p>
+          <div class="project-features">
+            <div class="feature">
+              <i class="fas fa-golf-ball"></i>
+              <span>Golf</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-tree"></i>
+              <span>Nature</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-shield-alt"></i>
+              <span>Secure</span>
+            </div>
+          </div>
+          <a href="#" class="project-link">View Details</a>
+        </div>
+      </div>
+      <div class="project-card">
+        <div class="project-image" style="background-image: url('/api/placeholder/400/250');"></div>
+        <div class="project-details">
+          <h3 class="project-title">Lakeview Heights</h3>
+          <div class="project-location">
+            <i class="fas fa-map-marker-alt"></i>
+            <p>Kisumu County</p>
+          </div>
+          <p class="project-price">From KSh. 2,800,000</p>
+          <div class="project-features">
+            <div class="feature">
+              <i class="fas fa-water"></i>
+              <span>Lake View</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-solar-panel"></i>
+              <span>Solar</span>
+            </div>
+            <div class="feature">
+              <i class="fas fa-road"></i>
+              <span>Roads</span>
+            </div>
+          </div>
+          <a href="#" class="project-link">View Details</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Choose Us Section -->
+  <section class="why-us">
+    <div class="section-title">
+      <h2>Why Choose HomeAfrika</h2>
+    </div>
+    <div class="reasons">
+      <div class="reason-card">
+        <div class="reason-icon">
+          <i class="fas fa-check-double"></i>
+        </div>
+        <h3>Proven Track Record</h3>
+        <p>With multiple completed projects since 2008, we have a proven record of delivering quality developments across Kenya.</p>
+      </div>
+      <div class="reason-card">
+        <div class="reason-icon">
+          <i class="fas fa-hand-holding-heart"></i>
+        </div>
+        <h3>Community Focus</h3>
+        <p>We don't just build houses; we create communities with amenities and infrastructure for dignified living.</p>
+      </div>
+      <div class="reason-card">
+        <div class="reason-icon">
+          <i class="fas fa-shield-alt"></i>
+        </div>
+        <h3>Regulated & Listed</h3>
+        <p>As a company listed on the Nairobi Securities Exchange, we adhere to strict regulatory standards and transparency.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Call To Action Section -->
+  <section class="cta">
+    <h2>Ready to Find Your Dream Home?</h2>
+    <p>Join thousands of satisfied homeowners who have found their perfect property with HomeAfrika. Our team is ready to help you start your journey to homeownership.</p>
+    <a href="#contact" class="cta-button">Contact Us Today</a>
+  </section>
+
+  <!-- Contact Section -->
+  <section class="contact" id="contact">
+    <div class="section-title">
+      <h2>Get In Touch</h2>
+    </div>
+    <div class="contact-container">
+      <div class="contact-info">
+        <h3>Contact Information</h3>
+        <div class="contact-detail">
+          <div class="contact-icon">
+            <i class="fas fa-map-marker-alt"></i>
+          </div>
+          <div>
+            <h4>Our Location</h4>
+            <p>Nairobi, Kenya</p>
+          </div>
+        </div>
+        <div class="contact-detail">
+          <div class="contact-icon">
+            <i class="fas fa-phone-alt"></i>
+          </div>
+          <div>
+            <h4>Phone Number</h4>
+            <p>+254 000 000 000</p>
+          </div>
+        </div>
+        <div class="contact-detail">
+          <div class="contact-icon">
+            <i class="fas fa-envelope"></i>
+          </div>
+          <div>
+            <h4>Email Address</h4>
+            <p>info@homeafrika.com</p>
+          </div>
+        </div>
+        <div class="social-links">
+          <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+          <a href="#" class="social-link"><i class="fab fa-linkedin-in"></i></a>
+        </div>
+      </div>
+      <div class="contact-form">
+        <form>
+          <div class="form-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" placeholder="Enter your name">
+          </div>
+          <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" placeholder="Enter your email">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" placeholder="Enter your phone number">
+          </div>
+          <div class="form-group">
+            <label for="interest">I'm interested in</label>
+            <select id="interest">
+              <option value="" selected disabled>Select your interest</option>
+              <option value="land">Land for Sale</option>
+              <option value="house">House for Sale</option>
+              <option value="investment">Investment Opportunities</option>
+              <option value="other">Other Inquiries</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">Message</label>
+            <textarea id="message" placeholder="Tell us more about your requirements"></textarea>
+          </div>
+          <button type="submit" class="submit-button">Send Message</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-container">
+      <div class="footer-column">
+        <h3>HomeAfrika</h3>
+        <p>A leading real estate development company providing dignified planned communities across Africa since 2008.</p>
+      </div>
+      <div class="footer-column">
+        <h3>Quick Links</h3>
+        <ul class="footer-links">
+          <li class="footer-link"><a href="#">Home</a></li>
+          <li class="footer-link"><a href="#about">About Us</a></li>
+          <li class="footer-link"><a href="#projects">Projects</a></li>
+          <li class="footer-link"><a href="#contact">Contact Us</a></li>
+          <li class="footer-link"><a href="#">Careers</a></li>
+          <li class="footer-link"><a href="#">News & Media</a></li>
+        </ul>
+      </div>
+      <div class="footer-column">
+        <h3>Our Projects</h3>
+        <ul class="footer-links">
+          <li class="footer-link"><a href="#">Migaa Golf Estate</a></li>
+          <li class="footer-link"><a href="#">Lakeview Heights</a></li>
+          <li class="footer-link"><a href="#">Noble Park</a></li>
+          <li class="footer-link"><a href="#">Llango</a></li>
+          <li class="footer-link"><a href="#">Kikwetu</a></li>
+          <li class="footer-link"><a href="#">Morningside Office Park</a></li>
+        </ul>
+      </div>
+      <div class="footer-column footer-newsletter">
+        <h3>Newsletter</h3>
+        <p>Subscribe to our newsletter for the latest updates on new projects and investment opportunities.</p>
+        <form class="newsletter-form">
+          <input type="email" placeholder="Your Email Address" class="newsletter-input">
+          <button type="submit" class="newsletter-button"><i class="fas fa-paper-plane"></i></button>
+        </form>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2025 HomeAfrika. All Rights Reserved.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // Mobile Navigation Toggle
+    const mobileToggle = document.querySelector('.mobile-toggle');
+    const navMenu = document.querySelector('.nav-menu');
+    
+    mobileToggle.addEventListener('click', () => {
+      navMenu.classList.toggle('active');
+    });
+    
+    // Hide mobile menu on link click
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+      link.addEventListener('click', () => {
+        navMenu.classList.remove('active');
+      });
+    });
+    
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          window.scrollTo({
+            top: target.offsetTop - 80,
+            behavior: 'smooth'
+          });
+        }
+      });
+    });
+    
+    // Embed the Snipin Chat Widget
+    document.addEventListener('DOMContentLoaded', function() {
+      const script = document.createElement('script');
+      script.setAttribute('data-agent-id', '74e472f3-8412-465a-8134-97d71c6ea24c');
+      script.setAttribute('src', 'https://snipin.com/agent-widget.js');
+      script.setAttribute('async', '');
+      document.body.appendChild(script);
+    });
+  </script>
+</body>
+</html>

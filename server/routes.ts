@@ -12,9 +12,11 @@ import {
   insertApiKeySchema,
   insertAgentPreferencesSchema,
   insertConversationSchema,
-  insertMessageSchema
+  insertMessageSchema,
+  insertContactSchema
 } from "@shared/schema";
 import { z } from "zod";
+import OpenAI from "openai";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -28,6 +30,27 @@ const registerSchema = insertUserSchema.omit({ tenantId: true }).extend({
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
+});
+
+// Widget API validation schemas
+const widgetContactSchema = insertContactSchema.omit({ tenantId: true }).extend({
+  email: z.string().email("Please enter a valid email address"),
+  name: z.string().min(1, "Name is required"),
+  phone: z.string().optional(),
+});
+
+const widgetConversationSchema = z.object({
+  contactId: z.string().uuid("Invalid contact ID"),
+  title: z.string().optional(),
+});
+
+const widgetMessageSchema = z.object({
+  content: z.string().min(1, "Message content is required"),
+  role: z.enum(['user', 'assistant']).default('user'),
+});
+
+const widgetChatSchema = z.object({
+  message: z.string().min(1, "Message is required"),
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -123,6 +146,238 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error('Login error:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Initialize OpenAI client
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  // Widget API routes (public, no authentication required)
+  // Get agent configuration and preferences for widget
+  app.get('/api/widget/agents/:agentId', async (req, res) => {
+    try {
+      const { agentId } = req.params;
+      
+      // Validate agent ID format
+      if (!agentId || typeof agentId !== 'string') {
+        return res.status(400).json({ error: 'Invalid agent ID' });
+      }
+      
+      const agent = await storage.getAgentById(agentId);
+      
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Get agent preferences
+      const preferences = await storage.getAgentPreferences(agentId, agent.tenantId);
+
+      res.json({
+        id: agent.id,
+        name: agent.name,
+        type: agent.type,
+        preferences: preferences || {
+          isContactRequired: true,
+          displayName: agent.name,
+          widgetTheme: {
+            primaryColor: '#2563eb',
+            secondaryColor: '#1d4ed8'
+          }
+        }
+      });
+    } catch (error) {
+      console.error('Widget agent config error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Create contact for widget chat
+  app.post('/api/widget/agents/:agentId/contacts', async (req, res) => {
+    try {
+      const { agentId } = req.params;
+      
+      // Validate request body
+      const validatedData = widgetContactSchema.parse(req.body);
+
+      // Get agent to verify it exists and get tenant info
+      const agent = await storage.getAgentById(agentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Create contact
+      const contact = await storage.createContact({
+        name: validatedData.name,
+        email: validatedData.email,
+        phone: validatedData.phone || null,
+        tenantId: agent.tenantId,
+      });
+
+      res.status(201).json(contact);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Widget create contact error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Start conversation for widget
+  app.post('/api/widget/agents/:agentId/conversations', async (req, res) => {
+    try {
+      const { agentId } = req.params;
+      
+      // Validate request body
+      const validatedData = widgetConversationSchema.parse(req.body);
+
+      // Get agent to verify it exists and get tenant info
+      const agent = await storage.getAgentById(agentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Verify contact exists
+      const contact = await storage.getContactById(validatedData.contactId, agent.tenantId);
+      if (!contact) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+
+      // Create conversation
+      const conversation = await storage.createConversation({
+        title: validatedData.title || 'Widget Chat',
+        agentId,
+        contactId: validatedData.contactId,
+        tenantId: agent.tenantId,
+      });
+
+      res.status(201).json(conversation);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Widget create conversation error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Send message to conversation
+  app.post('/api/widget/conversations/:conversationId/messages', async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      
+      // Validate request body
+      const validatedData = widgetMessageSchema.parse(req.body);
+
+      // Get conversation to verify access and get tenant info
+      const conversation = await storage.getConversationById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      // Create message (force role to 'user' for security on public endpoint)
+      const message = await storage.createMessage({
+        content: validatedData.content,
+        role: 'user', // Always force 'user' role on public widget endpoints for security
+        conversationId,
+        agentId: conversation.agentId,
+        tenantId: conversation.tenantId,
+      });
+
+      res.status(201).json(message);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Widget create message error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Get AI chat response
+  app.post('/api/widget/conversations/:conversationId/chat', async (req, res) => {
+    try {
+      const { conversationId } = req.params;
+      
+      // Validate request body
+      const validatedData = widgetChatSchema.parse(req.body);
+
+      // Get conversation and agent info
+      const conversation = await storage.getConversationById(conversationId);
+      if (!conversation) {
+        return res.status(404).json({ error: 'Conversation not found' });
+      }
+
+      const agent = await storage.getAgent(conversation.agentId, conversation.tenantId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Save user message first
+      await storage.createMessage({
+        content: validatedData.message,
+        role: 'user',
+        conversationId,
+        agentId: conversation.agentId,
+        tenantId: conversation.tenantId,
+      });
+
+      // Get recent conversation history for context
+      const recentMessages = await storage.getMessagesByConversation(
+        conversationId, 
+        conversation.tenantId, 
+        { limit: 10 }
+      );
+
+      // Build conversation context for OpenAI
+      const messages: any[] = [
+        {
+          role: 'system',
+          content: agent.description || 'You are a helpful AI assistant. Provide concise, helpful responses to user questions.'
+        }
+      ];
+
+      // Add recent message history
+      if (recentMessages.messages) {
+        recentMessages.messages
+          .reverse() // Most recent first for context
+          .slice(-8) // Keep only last 8 messages for context
+          .forEach(msg => {
+            messages.push({
+              role: msg.role,
+              content: msg.content
+            });
+          });
+      }
+
+      // Get AI response using gpt-4o (current stable model)
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages,
+        max_tokens: 500,
+        temperature: 0.7,
+      });
+
+      const aiResponse = response.choices[0].message.content || 'I apologize, but I was unable to generate a response. Please try again.';
+
+      // Save AI response as a message
+      await storage.createMessage({
+        content: aiResponse,
+        role: 'assistant',
+        conversationId,
+        agentId: conversation.agentId,
+        tenantId: conversation.tenantId,
+      });
+
+      res.json({ message: aiResponse });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Widget chat response error:', error);
+      res.status(500).json({ error: 'Failed to generate response' });
     }
   });
 

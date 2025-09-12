@@ -67,6 +67,7 @@ export interface IStorage {
   // Agents
   getAgentsByTenant(tenantId: string): Promise<Agent[]>;
   getAgent(id: string, tenantId: string): Promise<Agent | undefined>;
+  getAgentById(id: string): Promise<Agent | undefined>; // Widget API - no tenant filter
   createAgent(agent: InsertAgent): Promise<Agent>;
   updateAgent(id: string, agent: Partial<InsertAgent>, tenantId: string): Promise<Agent | undefined>;
   deleteAgent(id: string, tenantId: string): Promise<boolean>;
@@ -74,6 +75,10 @@ export interface IStorage {
   // Agent Preferences
   getAgentPreferences(agentId: string, tenantId: string): Promise<AgentPreferences | undefined>;
   updateAgentPreferences(agentId: string, preferences: Partial<InsertAgentPreferences>, tenantId: string): Promise<AgentPreferences | undefined>;
+
+  // Contacts
+  createContact(contact: InsertContact): Promise<Contact>;
+  getContactById(id: string, tenantId: string): Promise<Contact | undefined>;
   
   // Workflows
   getWorkflowsByTenant(tenantId: string): Promise<Workflow[]>;
@@ -126,6 +131,7 @@ export interface IStorage {
     offset?: number;
   }): Promise<{ conversations: Conversation[]; total: number }>;
   getConversation(id: string, tenantId: string): Promise<Conversation | undefined>;
+  getConversationById(id: string): Promise<Conversation | undefined>; // Widget API - no tenant filter
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: string, conversation: Partial<InsertConversation>, tenantId: string): Promise<Conversation | undefined>;
   
@@ -235,6 +241,11 @@ export class DatabaseStorage implements IStorage {
     const [agent] = await db.select().from(agents).where(
       and(eq(agents.id, id), eq(agents.tenantId, tenantId))
     );
+    return agent || undefined;
+  }
+
+  async getAgentById(id: string): Promise<Agent | undefined> {
+    const [agent] = await db.select().from(agents).where(eq(agents.id, id));
     return agent || undefined;
   }
 
@@ -783,6 +794,23 @@ export class DatabaseStorage implements IStorage {
     return updatedAgent || null;
   }
 
+  // Contacts
+  async createContact(contact: InsertContact): Promise<Contact> {
+    const [newContact] = await db
+      .insert(contacts)
+      .values(contact)
+      .returning();
+    return newContact;
+  }
+
+  async getContactById(id: string, tenantId: string): Promise<Contact | undefined> {
+    const [contact] = await db
+      .select()
+      .from(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)));
+    return contact || undefined;
+  }
+
   // Conversations
   async getConversationsByTenant(tenantId: string, filters: {
     agentId?: string;
@@ -822,6 +850,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(conversations)
       .where(and(eq(conversations.id, id), eq(conversations.tenantId, tenantId)))
+      .limit(1);
+    return conversation || undefined;
+  }
+
+  async getConversationById(id: string): Promise<Conversation | undefined> {
+    const [conversation] = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, id))
       .limit(1);
     return conversation || undefined;
   }
