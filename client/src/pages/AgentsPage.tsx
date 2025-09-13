@@ -91,7 +91,7 @@ export default function AgentsPage() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [activeTab, setActiveTab] = useState("stats");
   const [configSection, setConfigSection] = useState("llm");
-  const [copiedWidget, setCopiedWidget] = useState(false);
+  const [copiedWidget, setCopiedWidget] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   // Fetch agents
@@ -316,25 +316,38 @@ export default function AgentsPage() {
     });
   };
 
-  const handleCopyWidget = async () => {
+  const handleCopyWidget = async (widgetType: string) => {
     if (!selectedAgent) return;
     
-    const widgetCode = `<script>
-  window.EchoAgentConfig = {
-    agentId: "${selectedAgent.id}",
-    theme: "light"
-  };
-</script>
-<script src="https://cdn.echoagent.ai/widget.js"></script>`;
+    const getWidgetCode = (type: string) => {
+      const origin = window.location.origin;
+      switch (type) {
+        case 'chat-voice':
+          return `<script src="${origin}/chat-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
+        case 'chat-only':
+          return `<script src="${origin}/chat-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
+        case 'voice-only':
+          return `<script src="${origin}/voice-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
+        default:
+          return '';
+      }
+    };
+
+    const widgetCode = getWidgetCode(widgetType);
+    const widgetNames = {
+      'chat-voice': 'Chat + Voice Widget',
+      'chat-only': 'Chat Only Widget',
+      'voice-only': 'Voice Only Widget'
+    };
 
     try {
       await navigator.clipboard.writeText(widgetCode);
-      setCopiedWidget(true);
+      setCopiedWidget(widgetType);
       toast({
-        title: "Widget code copied!",
+        title: `${widgetNames[widgetType as keyof typeof widgetNames]} code copied!`,
         description: "The embed code has been copied to your clipboard.",
       });
-      setTimeout(() => setCopiedWidget(false), 2000);
+      setTimeout(() => setCopiedWidget(null), 2000);
     } catch (error) {
       toast({
         title: "Failed to copy",
@@ -1243,56 +1256,176 @@ export default function AgentsPage() {
                 </TabsContent>
 
                 <TabsContent value="widget" className="p-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Widget</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Add this conversational widget to your website. Visitors can talk or chat with your AI assistant directly from any page.
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="text-2xl font-semibold mb-2">Embed Widgets</h2>
+                      <p className="text-muted-foreground">
+                        Choose the widget type that best fits your website needs. Each widget can be customized and embedded with a simple script tag.
                       </p>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-lg font-semibold">Embed Code</h3>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Settings className="h-4 w-4 mr-2" />
-                              Customize
-                            </Button>
+                    </div>
+
+                    <div className="grid gap-6">
+                      {/* Chat + Voice Widget */}
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-center gap-3">
+                            <MessageCircle className="h-5 w-5 text-blue-600" />
+                            <Phone className="h-5 w-5 text-green-600" />
+                            <div>
+                              <CardTitle className="text-lg">Chat + Voice Widget</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Full-featured widget with both text chat and voice calling capabilities
+                              </p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Embed Code</h4>
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={handleCopyWidget}
-                              disabled={copiedWidget}
+                              onClick={() => handleCopyWidget('chat-voice')}
+                              disabled={copiedWidget === 'chat-voice'}
+                              data-testid="button-copy-chat-voice"
                             >
-                              {copiedWidget ? (
+                              {copiedWidget === 'chat-voice' ? (
                                 <Check className="h-4 w-4 mr-2" />
                               ) : (
                                 <Copy className="h-4 w-4 mr-2" />
                               )}
-                              {copiedWidget ? "Copied!" : "Copy"}
+                              {copiedWidget === 'chat-voice' ? "Copied!" : "Copy Code"}
                             </Button>
                           </div>
-                        </div>
-                        
-                        <div className="relative">
-                          <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
-                            <code>{`<script>
-  window.EchoAgentConfig = {
-    agentId: "${selectedAgent.id}",
-    theme: "light"
-  };
-</script>
-<script src="https://cdn.echoagent.ai/widget.js"></script>`}</code>
-                          </pre>
-                        </div>
-                        
-                        <p className="text-sm text-muted-foreground">
-                          Copy and paste this code into your website's HTML to add the conversational widget.
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                          
+                          <div className="relative">
+                            <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+                              <code>{`<script src="${window.location.origin}/chat-widget.js" data-agent-id="${selectedAgent.id}"></script>`}</code>
+                            </pre>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MessageSquare className="h-4 w-4" />
+                            <span>Text messaging</span>
+                            <span>•</span>
+                            <Phone className="h-4 w-4" />
+                            <span>Voice calls</span>
+                            <span>•</span>
+                            <User className="h-4 w-4" />
+                            <span>Contact forms</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Chat Only Widget */}
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-center gap-3">
+                            <MessageCircle className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <CardTitle className="text-lg">Chat Only Widget</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Text-based chat widget for websites that prefer messaging only
+                              </p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Embed Code</h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleCopyWidget('chat-only')}
+                              disabled={copiedWidget === 'chat-only'}
+                              data-testid="button-copy-chat-only"
+                            >
+                              {copiedWidget === 'chat-only' ? (
+                                <Check className="h-4 w-4 mr-2" />
+                              ) : (
+                                <Copy className="h-4 w-4 mr-2" />
+                              )}
+                              {copiedWidget === 'chat-only' ? "Copied!" : "Copy Code"}
+                            </Button>
+                          </div>
+                          
+                          <div className="relative">
+                            <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+                              <code>{`<script src="${window.location.origin}/chat-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`}</code>
+                            </pre>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MessageSquare className="h-4 w-4" />
+                            <span>Text messaging only</span>
+                            <span>•</span>
+                            <User className="h-4 w-4" />
+                            <span>Contact forms</span>
+                            <span>•</span>
+                            <span>Lightweight & fast</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Voice Only Widget */}
+                      <Card>
+                        <CardHeader>
+                          <div className="flex items-center gap-3">
+                            <Phone className="h-5 w-5 text-green-600" />
+                            <div>
+                              <CardTitle className="text-lg">Voice Only Widget</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Voice-first widget for hands-free AI conversations
+                              </p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-medium">Embed Code</h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleCopyWidget('voice-only')}
+                              disabled={copiedWidget === 'voice-only'}
+                              data-testid="button-copy-voice-only"
+                            >
+                              {copiedWidget === 'voice-only' ? (
+                                <Check className="h-4 w-4 mr-2" />
+                              ) : (
+                                <Copy className="h-4 w-4 mr-2" />
+                              )}
+                              {copiedWidget === 'voice-only' ? "Copied!" : "Copy Code"}
+                            </Button>
+                          </div>
+                          
+                          <div className="relative">
+                            <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
+                              <code>{`<script src="${window.location.origin}/voice-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`}</code>
+                            </pre>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="h-4 w-4" />
+                            <span>Voice calls only</span>
+                            <span>•</span>
+                            <User className="h-4 w-4" />
+                            <span>Contact forms</span>
+                            <span>•</span>
+                            <span>Hands-free experience</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">
+                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Integration Instructions</h4>
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        Copy the embed code for your preferred widget type and paste it into your website's HTML, preferably just before the closing <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">&lt;/body&gt;</code> tag. 
+                        The widget will automatically initialize when the page loads.
+                      </p>
+                    </div>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="conversation-history" className="p-6">

@@ -2,7 +2,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { randomUUID } from 'crypto';
 import { storage } from './storage';
-import { verifyToken } from './auth';
+import { verifyToken, verifyWidgetVoiceToken } from './auth';
 
 interface Client {
   id: string;
@@ -337,19 +337,25 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
         return;
       }
       
-      // Verify JWT token and extract claims
-      const authData = verifyToken(token);
+      // Try to verify as regular JWT token first
+      let authData = verifyToken(token);
+      let widgetVoiceAuth = null;
+      
+      // If regular JWT verification fails, try widget voice token
       if (!authData) {
-        ws.send(JSON.stringify({
-          type: 'error',
-          message: 'Invalid or expired JWT token'
-        }));
-        ws.close();
-        return;
+        widgetVoiceAuth = verifyWidgetVoiceToken(token);
+        if (!widgetVoiceAuth) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: 'Invalid or expired JWT token'
+          }));
+          ws.close();
+          return;
+        }
       }
       
-      // Extract tenantId from verified JWT
-      tenantId = authData.tenantId;
+      // Extract tenantId from verified JWT (either regular or widget voice)
+      tenantId = authData?.tenantId || widgetVoiceAuth?.tenantId;
       if (!tenantId) {
         ws.send(JSON.stringify({
           type: 'error',
@@ -386,9 +392,10 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
         }
         
         // Additional security: Verify token was issued for this specific room
-        // Widget tokens should include roomId for additional validation
-        if (authData.roomId && authData.roomId !== roomId) {
-          console.warn(`⚠️  Widget token issued for different room: token.roomId=${authData.roomId}, requested=${roomId}`);
+        // Widget voice tokens should include roomId for additional validation
+        const tokenRoomId = authData?.roomId || widgetVoiceAuth?.roomId;
+        if (tokenRoomId && tokenRoomId !== roomId) {
+          console.warn(`⚠️  Widget token issued for different room: token.roomId=${tokenRoomId}, requested=${roomId}`);
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Widget token not valid for this room'
@@ -398,14 +405,39 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
         }
         
         // If callId provided in path, verify it matches token claim
-        if (callId && authData.callId && authData.callId !== callId) {
-          console.warn(`⚠️  Widget token issued for different call: token.callId=${authData.callId}, requested=${callId}`);
+        const tokenCallId = authData?.callId || widgetVoiceAuth?.callId;
+        if (callId && tokenCallId && tokenCallId !== callId) {
+          console.warn(`⚠️  Widget token issued for different call: token.callId=${tokenCallId}, requested=${callId}`);
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Widget token not valid for this call'
           }));
           ws.close();
           return;
+        }
+        
+        // For widget voice tokens, verify callToken matches if available
+        if (widgetVoiceAuth?.callToken && callId) {
+          try {
+            const call = await storage.getCall(callId, tenantId);
+            if (!call || call.callToken !== widgetVoiceAuth.callToken) {
+              console.warn(`⚠️  Widget voice token callToken mismatch for call ${callId}`);
+              ws.send(JSON.stringify({
+                type: 'error',
+                message: 'Widget voice token not valid for this call'
+              }));
+              ws.close();
+              return;
+            }
+          } catch (error) {
+            console.error('Error verifying widget voice token callToken:', error);
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Error validating widget voice token'
+            }));
+            ws.close();
+            return;
+          }
         }
       }
       

@@ -19,6 +19,15 @@ export interface AuthUser {
   tenantId: string;
 }
 
+export interface WidgetVoiceAuth {
+  type: 'widget_voice';
+  tenantId: string;
+  roomId: string;
+  callId: string;
+  callToken: string;
+  agentId: string;
+}
+
 export interface AuthRequest extends Request {
   user?: AuthUser;
 }
@@ -35,9 +44,25 @@ export const generateToken = (user: AuthUser): string => {
   return jwt.sign(user, JWT_SECRET, { expiresIn: '7d' });
 };
 
+export const generateWidgetVoiceToken = (auth: WidgetVoiceAuth): string => {
+  return jwt.sign(auth, JWT_SECRET, { expiresIn: '24h' });
+};
+
 export const verifyToken = (token: string): AuthUser | null => {
   try {
     return jwt.verify(token, JWT_SECRET) as AuthUser;
+  } catch {
+    return null;
+  }
+};
+
+export const verifyWidgetVoiceToken = (token: string): WidgetVoiceAuth | null => {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded.type === 'widget_voice') {
+      return decoded as WidgetVoiceAuth;
+    }
+    return null;
   } catch {
     return null;
   }
