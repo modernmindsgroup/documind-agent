@@ -273,6 +273,7 @@ export const agentPreferences = pgTable("agent_preferences", {
   logo: text("logo"), // URL or base64 image
   displayName: text("display_name"), // Custom name shown in widget
   widgetThemeColor: text("widget_theme_color").default("#2563eb"), // Hex color code
+  realtimeVoicePlatform: text("realtime_voice_platform").default("Custom"), // "Custom" or "LiveKit"
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -609,6 +610,7 @@ export const insertAgentPreferencesSchema = createInsertSchema(agentPreferences)
   logo: true,
   displayName: true,
   widgetThemeColor: true,
+  realtimeVoicePlatform: true,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({

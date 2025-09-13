@@ -79,6 +79,7 @@ const preferencesSchema = z.object({
   displayName: z.string().min(1, "Display name is required"),
   logo: z.string().url().optional().or(z.literal("")),
   widgetTheme: z.enum(["light", "dark", "auto"]),
+  realtimeVoicePlatform: z.enum(["Custom", "LiveKit"]),
 });
 
 type LLMConfig = z.infer<typeof llmConfigSchema>;
@@ -129,6 +130,7 @@ export default function AgentsPage() {
     displayName: string;
     logo: string | null;
     widgetTheme: 'light' | 'dark' | 'auto';
+    realtimeVoicePlatform: 'Custom' | 'LiveKit';
   }>({
     queryKey: ['/api/agents', selectedAgent?.id, 'preferences'],
     enabled: !!selectedAgent?.id,
@@ -249,6 +251,7 @@ export default function AgentsPage() {
       displayName: agentPreferences?.displayName || selectedAgent?.name || "",
       logo: agentPreferences?.logo || "",
       widgetTheme: agentPreferences?.widgetTheme || "light",
+      realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || "Custom",
     },
   });
 
@@ -272,6 +275,7 @@ export default function AgentsPage() {
         displayName: agentPreferences?.displayName || selectedAgent.name || "",
         logo: agentPreferences?.logo || "",
         widgetTheme: agentPreferences?.widgetTheme || "light",
+        realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || "Custom",
       });
     }
   }, [selectedAgent, agentPreferences, llmForm, voiceForm, preferencesForm]);
@@ -1211,6 +1215,31 @@ export default function AgentsPage() {
                                   </Select>
                                   <FormDescription>
                                     Color theme for the widget interface
+                                  </FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            <FormField
+                              control={preferencesForm.control}
+                              name="realtimeVoicePlatform"
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>Realtime Voice Platform</FormLabel>
+                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger data-testid="select-voice-platform">
+                                        <SelectValue placeholder="Select voice platform" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="Custom">Custom (Current Implementation)</SelectItem>
+                                      <SelectItem value="LiveKit">LiveKit (Coming Soon)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>
+                                    Choose the voice communication platform for real-time conversations
                                   </FormDescription>
                                   <FormMessage />
                                 </FormItem>

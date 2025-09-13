@@ -435,10 +435,26 @@ export async function registerRoutes(app: Express): Promise<void> {
         contactId = contact.id;
       }
 
-      // Get the agent's default room
-      const room = await storage.getRoomByAgentId(agent.id, agent.tenantId);
+      // Get or create the agent's default room
+      let room = await storage.getRoomByAgentId(agent.id, agent.tenantId);
       if (!room) {
-        return res.status(404).json({ error: 'No room available for this agent' });
+        console.log(`Creating default room for agent ${agent.id}`);
+        // Lazily create a default room for the agent
+        const roomData = insertRoomSchema.parse({
+          tenantId: agent.tenantId,
+          name: `${agent.name || 'Agent'} Room`,
+          isPublic: true,
+        });
+        room = await storage.createRoom(roomData);
+        
+        // Create room-agent mapping
+        const roomAgentData = insertRoomAgentSchema.parse({
+          roomId: room.id,
+          agentId: agent.id,
+          tenantId: agent.tenantId,
+          role: 'primary',
+        });
+        await storage.createRoomAgent(roomAgentData);
       }
 
       // Create the call with auto-generated callToken
@@ -469,7 +485,8 @@ export async function registerRoutes(app: Express): Promise<void> {
         success: true,
         callId: call.id,
         roomId: room.id,
-        jwtToken: widgetVoiceToken,
+        token: widgetVoiceToken,      // Widget expects this field name
+        jwtToken: widgetVoiceToken,   // Keep for backward compatibility
         wsUrl: `/ws/${room.id}/human/${call.id}`,
         call: {
           id: call.id,
