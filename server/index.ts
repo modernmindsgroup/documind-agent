@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupWebSocketServer } from "./websocket";
 
 const app = express();
 
@@ -49,18 +48,6 @@ app.use((req, res, next) => {
   
   // Create HTTP server
   const httpServer = createServer(app);
-  
-  // Setup WebSocket server for voice calls
-  setupWebSocketServer(httpServer);
-  
-  // Initialize call platforms (must be done before registering routes)
-  try {
-    const { initializeCallPlatforms } = await import("./calls/index");
-    await initializeCallPlatforms();
-  } catch (error) {
-    console.error('❌ Failed to initialize call platforms:', error);
-    console.log('⚠️ Continuing with default WebSocket platform only');
-  }
   
   // Register API routes
   await registerRoutes(app);

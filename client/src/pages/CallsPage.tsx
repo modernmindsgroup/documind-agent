@@ -286,14 +286,7 @@ export default function CallsPage() {
                         <div className="flex gap-2">
                           {call.status === 'completed' && (
                             <>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="hover-elevate"
-                                data-testid={`button-play-${call.id}`}
-                              >
-                                <Play className="h-4 w-4" />
-                              </Button>
+                              {/* Voice playback functionality removed */}
                               <Button 
                                 variant="ghost" 
                                 size="sm" 

@@ -79,7 +79,7 @@ const preferencesSchema = z.object({
   displayName: z.string().min(1, "Display name is required"),
   logo: z.string().url().optional().or(z.literal("")),
   widgetTheme: z.enum(["light", "dark", "auto"]),
-  realtimeVoicePlatform: z.enum(["default", "livekit"]),
+  // Voice platform selection removed - voice functionality no longer available
 });
 
 type LLMConfig = z.infer<typeof llmConfigSchema>;
@@ -130,7 +130,6 @@ export default function AgentsPage() {
     displayName: string;
     logo: string | null;
     widgetTheme: 'light' | 'dark' | 'auto';
-    realtimeVoicePlatform: 'default' | 'livekit';
   }>({
     queryKey: ['/api/agents', selectedAgent?.id, 'preferences'],
     enabled: !!selectedAgent?.id,
@@ -145,15 +144,7 @@ export default function AgentsPage() {
     enabled: !!selectedAgent?.id,
   });
 
-  // Fetch available call platforms
-  const { data: callPlatforms = [], isLoading: platformsLoading } = useQuery<Array<{
-    id: string;
-    name: string;
-    available: boolean;
-    description: string;
-  }>>({
-    queryKey: ['/api/call-platforms'],
-  });
+  // Voice platform functionality has been removed
 
   // Mutations for agent actions
   const toggleStatusMutation = useMutation({
@@ -224,14 +215,7 @@ export default function AgentsPage() {
     }
   }, [agents, selectedAgent]);
 
-  // Helper function to get default platform based on availability
-  const getDefaultPlatform = () => {
-    const livekitPlatform = callPlatforms.find(p => p.id === "livekit");
-    if (livekitPlatform && livekitPlatform.available) {
-      return "livekit";
-    }
-    return "default";
-  };
+  // Voice platform selection removed - voice functionality no longer available
 
   // Form instances
   const llmForm = useForm<LLMConfig>({
@@ -357,8 +341,6 @@ export default function AgentsPage() {
           return `<script src="${origin}/chat-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
         case 'chat-only':
           return `<script src="${origin}/chat-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
-        case 'voice-only':
-          return `<script src="${origin}/voice-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`;
         default:
           return '';
       }
@@ -367,8 +349,7 @@ export default function AgentsPage() {
     const widgetCode = getWidgetCode(widgetType);
     const widgetNames = {
       'chat-voice': 'Chat + Voice Widget',
-      'chat-only': 'Chat Only Widget',
-      'voice-only': 'Voice Only Widget'
+      'chat-only': 'Chat Only Widget'
     };
 
     try {
@@ -1248,37 +1229,7 @@ export default function AgentsPage() {
                               )}
                             />
 
-                            <FormField
-                              control={preferencesForm.control}
-                              name="realtimeVoicePlatform"
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormLabel>Realtime Voice Platform</FormLabel>
-                                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                      <SelectTrigger data-testid="select-voice-platform">
-                                        <SelectValue placeholder="Select voice platform" />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                      {callPlatforms.map((platform) => (
-                                        <SelectItem 
-                                          key={platform.id} 
-                                          value={platform.id}
-                                          disabled={!platform.available}
-                                        >
-                                          {platform.name} {!platform.available && "(Not Available)"}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <FormDescription>
-                                    Choose the voice communication platform for real-time conversations
-                                  </FormDescription>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
-                            />
+                            {/* Voice platform selection removed - voice functionality no longer available */}
 
                             <FormField
                               control={preferencesForm.control}
@@ -1430,55 +1381,6 @@ export default function AgentsPage() {
                         </CardContent>
                       </Card>
 
-                      {/* Voice Only Widget */}
-                      <Card>
-                        <CardHeader>
-                          <div className="flex items-center gap-3">
-                            <Phone className="h-5 w-5 text-green-600" />
-                            <div>
-                              <CardTitle className="text-lg">Voice Only Widget</CardTitle>
-                              <p className="text-sm text-muted-foreground">
-                                Voice-first widget for hands-free AI conversations
-                              </p>
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium">Embed Code</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleCopyWidget('voice-only')}
-                              disabled={copiedWidget === 'voice-only'}
-                              data-testid="button-copy-voice-only"
-                            >
-                              {copiedWidget === 'voice-only' ? (
-                                <Check className="h-4 w-4 mr-2" />
-                              ) : (
-                                <Copy className="h-4 w-4 mr-2" />
-                              )}
-                              {copiedWidget === 'voice-only' ? "Copied!" : "Copy Code"}
-                            </Button>
-                          </div>
-                          
-                          <div className="relative">
-                            <pre className="bg-muted p-4 rounded-lg text-sm overflow-x-auto">
-                              <code>{`<script src="${window.location.origin}/voice-only-widget.js" data-agent-id="${selectedAgent.id}"></script>`}</code>
-                            </pre>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Phone className="h-4 w-4" />
-                            <span>Voice calls only</span>
-                            <span>•</span>
-                            <User className="h-4 w-4" />
-                            <span>Contact forms</span>
-                            <span>•</span>
-                            <span>Hands-free experience</span>
-                          </div>
-                        </CardContent>
-                      </Card>
                     </div>
 
                     <div className="bg-blue-50 dark:bg-blue-950/30 p-4 rounded-lg">

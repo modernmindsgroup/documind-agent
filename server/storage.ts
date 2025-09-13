@@ -19,14 +19,6 @@ import {
   llmProviders,
   llmModels,
   llmConfigurations,
-  voiceProviders,
-  voices,
-  voiceModels,
-  voiceConfigurations,
-  transcriberProviders,
-  transcriberLanguages,
-  transcriberModels,
-  transcriberConfigurations,
   type User, 
   type InsertUser,
   type Tenant,
@@ -305,17 +297,9 @@ export class DatabaseStorage implements IStorage {
         widgetThemeColor: "#2563eb",
       });
 
-      // Get first available providers and models (more robust than hardcoded names)
+      // Get first available LLM provider and model for text conversations
       const [defaultLlmProvider] = await tx.select().from(llmProviders).where(eq(llmProviders.isActive, true)).limit(1);
       const [defaultLlmModel] = await tx.select().from(llmModels).where(eq(llmModels.llmProviderId, defaultLlmProvider?.id || '')).limit(1);
-      
-      const [defaultVoiceProvider] = await tx.select().from(voiceProviders).where(eq(voiceProviders.isActive, true)).limit(1);
-      const [defaultVoice] = await tx.select().from(voices).where(eq(voices.voiceProviderId, defaultVoiceProvider?.id || '')).limit(1);
-      const [defaultVoiceModel] = await tx.select().from(voiceModels).where(eq(voiceModels.voiceProviderId, defaultVoiceProvider?.id || '')).limit(1);
-      
-      const [defaultTranscriberProvider] = await tx.select().from(transcriberProviders).where(eq(transcriberProviders.isActive, true)).limit(1);
-      const [defaultTranscriberLanguage] = await tx.select().from(transcriberLanguages).where(eq(transcriberLanguages.transcriberProviderId, defaultTranscriberProvider?.id || '')).limit(1);
-      const [defaultTranscriberModel] = await tx.select().from(transcriberModels).where(eq(transcriberModels.transcriberProviderId, defaultTranscriberProvider?.id || '')).limit(1);
 
       // Create default LLM configuration
       if (defaultLlmProvider && defaultLlmModel) {
@@ -329,25 +313,8 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
-      // Create default voice configuration (removed non-existent voiceSettings)
-      if (defaultVoiceProvider && defaultVoice && defaultVoiceModel) {
-        await tx.insert(voiceConfigurations).values({
-          agentId: newAgent.id,
-          voiceProviderId: defaultVoiceProvider.id,
-          voiceId: defaultVoice.id,
-          voiceModelId: defaultVoiceModel.id,
-        });
-      }
-
-      // Create default transcriber configuration (removed non-existent transcriberSettings)
-      if (defaultTranscriberProvider && defaultTranscriberLanguage && defaultTranscriberModel) {
-        await tx.insert(transcriberConfigurations).values({
-          agentId: newAgent.id,
-          transcriberProviderId: defaultTranscriberProvider.id,
-          transcriberLanguageId: defaultTranscriberLanguage.id,
-          transcriberModelId: defaultTranscriberModel.id,
-        });
-      }
+      // Voice functionality has been removed
+      // Voice and transcriber configurations are no longer created by default
 
       return newAgent;
     });
@@ -388,25 +355,8 @@ export class DatabaseStorage implements IStorage {
         .returning();
     }
 
-    // If realtimeVoicePlatform is being updated, also update the agent's callPlatform field
-    if (preferences.realtimeVoicePlatform) {
-      const platformMapping: Record<string, string> = {
-        "default": "default",
-        "livekit": "livekit",
-        "Custom": "default", // Legacy value mapping
-        "LiveKit": "livekit", // Legacy value mapping
-      };
-      
-      const callPlatform = platformMapping[preferences.realtimeVoicePlatform] || "default";
-      
-      await db
-        .update(agents)
-        .set({ 
-          callPlatform: callPlatform as "default" | "livekit",
-          updatedAt: new Date() 
-        })
-        .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)));
-    }
+    // Voice platform functionality has been removed
+    // No longer sync realtimeVoicePlatform with agent callPlatform
 
     return updated[0] || undefined;
   }
@@ -855,7 +805,7 @@ export class DatabaseStorage implements IStorage {
     const updateData: Partial<Agent> = { updatedAt: new Date() };
     
     // Configuration is now handled by separate configuration tables
-    // TODO: Implement proper configuration updates using llmConfigurations, voiceConfigurations, etc.
+    // TODO: Implement proper configuration updates using llmConfigurations, etc.
     
     const [updatedAgent] = await db
       .update(agents)

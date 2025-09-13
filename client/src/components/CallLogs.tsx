@@ -232,14 +232,7 @@ export function CallLogs({ logs }: CallLogsProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            className="h-8 w-8 p-0 hover-elevate"
-                            data-testid={`button-play-${log.id}`}
-                          >
-                            <PlayCircle className="h-4 w-4" />
-                          </Button>
+                          {/* Voice playback removed */}
                           <Button 
                             size="sm" 
                             variant="ghost" 

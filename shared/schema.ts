@@ -30,7 +30,7 @@ export const agents = pgTable("agents", {
   name: text("name").notNull(),
   description: text("description"),
   type: text("type", { enum: ["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"] }).notNull(),
-  callPlatform: text("call_platform", { enum: ["default", "livekit"] }).default("default"),
+  callPlatform: text("call_platform", { enum: ["default"] }).default("default"), // Voice functionality removed
   isActive: boolean("is_active").default(false),
   editedBy: varchar("edited_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -274,7 +274,7 @@ export const agentPreferences = pgTable("agent_preferences", {
   logo: text("logo"), // URL or base64 image
   displayName: text("display_name"), // Custom name shown in widget
   widgetThemeColor: text("widget_theme_color").default("#2563eb"), // Hex color code
-  realtimeVoicePlatform: text("realtime_voice_platform").default("Custom"), // "Custom" or "LiveKit"
+  realtimeVoicePlatform: text("realtime_voice_platform").default("text"), // Voice functionality removed
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -644,61 +644,10 @@ export const insertRoomAgentSchema = createInsertSchema(roomAgents).pick({
   role: true,
 });
 
-export const insertCallSchema = createInsertSchema(calls).pick({
-  tenantId: true,
-  agentId: true,
-  roomId: true,
-  contactId: true,
-  direction: true,
-  status: true,
-  callToken: true,
-  endedAt: true,
-  durationSeconds: true,
-  recordingUrl: true,
-  transcriptUrl: true,
-  metadata: true,
-});
 
-// Restricted update schema for admin endpoints - only allows mutable fields
-export const updateCallSchema = createInsertSchema(calls).pick({
-  status: true,
-  endedAt: true,
-  durationSeconds: true,
-  recordingUrl: true,
-  transcriptUrl: true,
-  metadata: true,
-}).partial();
 
-// Widget call creation schema with strict validation
-export const widgetCallCreateSchema = z.object({
-  contactId: z.string().uuid().optional(),
-  contactEmail: z.string().email().optional(),
-  contactName: z.string().min(1).optional(),
-  contactPhone: z.string().optional(),
-}).refine((data) => data.contactId || data.contactEmail || data.contactName, {
-  message: "Either contactId or contact information (contactEmail/contactName) must be provided",
-});
 
-// Widget call update schema - even more restricted than admin updates
-export const widgetCallUpdateSchema = z.object({
-  status: z.enum(["completed", "failed", "canceled"]).optional(),
-  endedAt: z.string().datetime().optional(),
-  durationSeconds: z.number().int().min(0).optional(),
-  metadata: z.record(z.any()).optional(),
-}).refine((data) => Object.keys(data).length > 0, {
-  message: "At least one field must be provided for update",
-});
 
-// Sanitized response type for widget endpoints
-export const widgetCallResponseSchema = z.object({
-  id: z.string(),
-  status: z.string(),
-  direction: z.string(),
-  startedAt: z.string().optional(),
-  endedAt: z.string().optional(),
-  durationSeconds: z.number().optional(),
-  callToken: z.string(),
-});
 
 // Export types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -730,5 +679,4 @@ export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof rooms.$inferSelect;
 export type InsertRoomAgent = z.infer<typeof insertRoomAgentSchema>;
 export type RoomAgent = typeof roomAgents.$inferSelect;
-export type InsertCall = z.infer<typeof insertCallSchema>;
 export type Call = typeof calls.$inferSelect;
