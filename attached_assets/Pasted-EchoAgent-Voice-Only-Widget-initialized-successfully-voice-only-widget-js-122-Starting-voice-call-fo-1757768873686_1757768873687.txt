@@ -1,0 +1,16 @@
+EchoAgent Voice-Only Widget initialized successfully
+voice-only-widget.js:122 Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:133 Voice call started: {success: true, callId: '4118670c-6d3d-40f7-8ff4-dc3589ef7351', roomId: '08d4afb9-d5e6-435c-97ed-9f0d4a8d5860', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoid…yNDZ9.CSsy3CU1saw8Q8YuVDt6d96TciCcgD4HyDra5n2e5WY', jwtToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoid…yNDZ9.CSsy3CU1saw8Q8YuVDt6d96TciCcgD4HyDra5n2e5WY', …}
+voice-only-widget.js:193 Connecting to WebSocket: wss://745d7d39-53e1-43dc-8cf9-d73f48b9b330-00-27t3ik7n9r2t0.worf.replit.dev/ws/08d4afb9-d5e6-435c-97ed-9f0d4a8d5860/human/4118670c-6d3d-40f7-8ff4-dc3589ef7351
+voice-only-widget.js:199 WebSocket connected for voice call
+voice-only-widget.js:227 Received WebSocket message: {type: 'connected', clientId: '0a886ac2-de28-486c-a120-d8457ccf3aad', roomId: '08d4afb9-d5e6-435c-97ed-9f0d4a8d5860', clientType: 'human', callId: '4118670c-6d3d-40f7-8ff4-dc3589ef7351'}
+voice-only-widget.js:231 WebSocket connection confirmed: {type: 'connected', clientId: '0a886ac2-de28-486c-a120-d8457ccf3aad', roomId: '08d4afb9-d5e6-435c-97ed-9f0d4a8d5860', clientType: 'human', callId: '4118670c-6d3d-40f7-8ff4-dc3589ef7351'}
+voice-only-widget.js:227 Received WebSocket message: {type: 'connected', clientId: '0a886ac2-de28-486c-a120-d8457ccf3aad', roomId: '08d4afb9-d5e6-435c-97ed-9f0d4a8d5860', clientType: 'human', callId: '4118670c-6d3d-40f7-8ff4-dc3589ef7351'}
+voice-only-widget.js:231 WebSocket connection confirmed: {type: 'connected', clientId: '0a886ac2-de28-486c-a120-d8457ccf3aad', roomId: '08d4afb9-d5e6-435c-97ed-9f0d4a8d5860', clientType: 'human', callId: '4118670c-6d3d-40f7-8ff4-dc3589ef7351'}
+voice-only-widget.js:262 Requesting microphone access...
+voice-only-widget.js:274 Microphone access granted
+voice-only-widget.js:313 Recording started
+voice-only-widget.js:327 Stopping recording...
+voice-only-widget.js:293 Recording stopped
+voice-only-widget.js:334 Sending audio data to WebSocket, size: 30242
+voice-only-widget.js:349 Audio message sent via WebSocket

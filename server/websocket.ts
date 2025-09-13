@@ -47,7 +47,11 @@ class InProcessVoiceAgent {
   private async connect(token: string): Promise<void> {
     try {
       console.log(`🤖 Spawning AI agent for room: ${this.roomId}`);
-      this.ws = new WebSocket(this.websocketUrl, [`auth.${token}`]);
+      
+      // Fix: Pass token via query string and normalize URL scheme
+      const wsBase = this.websocketUrl.replace(/^https?/, 'wss');
+      const url = `${wsBase}?token=${token}`;
+      this.ws = new WebSocket(url);
       
       this.ws.on('open', () => {
         console.log(`✅ AI agent connected to room: ${this.roomId}`);
@@ -310,7 +314,13 @@ export class VoiceChatServer {
 
   public setBaseUrlFromRequest(request: any): void {
     if (!this.hostDetected && request.headers.host) {
-      const protocol = request.headers['x-forwarded-proto'] || (request.connection.encrypted ? 'wss' : 'ws');
+      // Map protocol properly for WebSocket connections
+      let protocol = request.headers['x-forwarded-proto'] || 'http';
+      if (protocol === 'https') protocol = 'wss';
+      else if (protocol === 'http') protocol = 'ws';
+      else if (request.connection.encrypted) protocol = 'wss';
+      else protocol = 'ws';
+      
       this.baseUrl = `${protocol}://${request.headers.host}`;
       this.hostDetected = true;
       console.log(`🌐 Detected WebSocket base URL: ${this.baseUrl}`);
