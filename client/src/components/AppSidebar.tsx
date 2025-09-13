@@ -54,11 +54,6 @@ const menuItems: SidebarItem[] = [
     icon: Users,
   },
   {
-    title: "Billing",
-    url: "/billing",
-    icon: CreditCard,
-  },
-  {
     title: "Build",
     url: "#",
     icon: Zap,
@@ -118,6 +113,11 @@ const menuItems: SidebarItem[] = [
         icon: Activity,
       },
     ],
+  },
+  {
+    title: "Billing",
+    url: "/billing",
+    icon: CreditCard,
   },
 ];
 
