@@ -265,9 +265,21 @@ export class VoiceChatServer {
 export function setupWebSocketServer(server: Server): VoiceChatServer {
   const voiceServer = new VoiceChatServer();
   const wss = new WebSocketServer({ 
-    server,
-    // Remove path restriction to allow /ws/* paths
+    noServer: true,
     maxPayload: 1024 * 1024 // 1MB limit for audio frames
+  });
+
+  // Handle WebSocket upgrade events manually to filter voice calls vs Vite HMR
+  server.on('upgrade', (request, socket, head) => {
+    const url = request.url || '';
+    
+    // Only handle WebSocket upgrades for voice calls (/ws/*)
+    if (url === '/ws' || url.startsWith('/ws/')) {
+      wss.handleUpgrade(request, socket, head, (ws) => {
+        wss.emit('connection', ws, request);
+      });
+    }
+    // Let other WebSocket connections (like Vite HMR) be handled by other servers
   });
 
   wss.on('connection', async (ws, req) => {
