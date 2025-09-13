@@ -301,6 +301,43 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Rooms for voice calls
+export const rooms = pgTable("rooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  name: text("name").notNull(),
+  createdByAgentId: varchar("created_by_agent_id"), // Optional - which agent triggered the room creation
+  status: text("status", { enum: ["active", "ended"] }).notNull().default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Room-Agent associations (many-to-many)
+export const roomAgents = pgTable("room_agents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  roomId: varchar("room_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  role: text("role", { enum: ["primary", "assistant"] }).notNull().default("primary"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Voice calls
+export const calls = pgTable("calls", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  roomId: varchar("room_id").notNull(),
+  contactId: varchar("contact_id"), // Nullable if contact not required
+  direction: text("direction", { enum: ["inbound", "outbound"] }).notNull().default("inbound"),
+  status: text("status", { enum: ["initiated", "ringing", "connected", "completed", "failed", "canceled"] }).notNull().default("initiated"),
+  startedAt: timestamp("started_at").defaultNow(),
+  endedAt: timestamp("ended_at"),
+  durationSeconds: integer("duration_seconds"),
+  recordingUrl: text("recording_url"),
+  transcriptUrl: text("transcript_url"),
+  metadata: jsonb("metadata"), // Additional call data (transcript summary, etc.)
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Define relations for foreign keys
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
@@ -315,6 +352,8 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   contacts: many(contacts),
   conversations: many(conversations),
   messages: many(messages),
+  rooms: many(rooms),
+  calls: many(calls),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -339,6 +378,9 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   preferences: one(agentPreferences),
   conversations: many(conversations),
   messages: many(messages),
+  roomAgents: many(roomAgents),
+  calls: many(calls),
+  createdRooms: many(rooms),
 }));
 
 export const workflowsRelations = relations(workflows, ({ one }) => ({
@@ -455,6 +497,49 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
+export const roomsRelations = relations(rooms, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [rooms.tenantId],
+    references: [tenants.id],
+  }),
+  createdByAgent: one(agents, {
+    fields: [rooms.createdByAgentId],
+    references: [agents.id],
+  }),
+  roomAgents: many(roomAgents),
+  calls: many(calls),
+}));
+
+export const roomAgentsRelations = relations(roomAgents, ({ one }) => ({
+  room: one(rooms, {
+    fields: [roomAgents.roomId],
+    references: [rooms.id],
+  }),
+  agent: one(agents, {
+    fields: [roomAgents.agentId],
+    references: [agents.id],
+  }),
+}));
+
+export const callsRelations = relations(calls, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [calls.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [calls.agentId],
+    references: [agents.id],
+  }),
+  room: one(rooms, {
+    fields: [calls.roomId],
+    references: [rooms.id],
+  }),
+  contact: one(contacts, {
+    fields: [calls.contactId],
+    references: [contacts.id],
+  }),
+}));
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -541,6 +626,33 @@ export const insertMessageSchema = createInsertSchema(messages).pick({
   role: true,
 });
 
+export const insertRoomSchema = createInsertSchema(rooms).pick({
+  tenantId: true,
+  name: true,
+  createdByAgentId: true,
+  status: true,
+});
+
+export const insertRoomAgentSchema = createInsertSchema(roomAgents).pick({
+  roomId: true,
+  agentId: true,
+  role: true,
+});
+
+export const insertCallSchema = createInsertSchema(calls).pick({
+  tenantId: true,
+  agentId: true,
+  roomId: true,
+  contactId: true,
+  direction: true,
+  status: true,
+  endedAt: true,
+  durationSeconds: true,
+  recordingUrl: true,
+  transcriptUrl: true,
+  metadata: true,
+});
+
 // Export types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
@@ -567,3 +679,9 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
+export type InsertRoom = z.infer<typeof insertRoomSchema>;
+export type Room = typeof rooms.$inferSelect;
+export type InsertRoomAgent = z.infer<typeof insertRoomAgentSchema>;
+export type RoomAgent = typeof roomAgents.$inferSelect;
+export type InsertCall = z.infer<typeof insertCallSchema>;
+export type Call = typeof calls.$inferSelect;
