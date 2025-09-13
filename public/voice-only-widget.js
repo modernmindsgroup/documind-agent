@@ -27,7 +27,7 @@
     isOpen: false,
     isContactInfoSubmitted: false,
     contactId: null,
-    conversationId: null,
+    contactInfo: null, // Store contact info for voice API
     agentConfig: null,
     // Voice call state
     voiceCall: null,
@@ -83,50 +83,26 @@
     }
   }
   
-  // Create or get contact
-  async function createContact(contactInfo) {
-    try {
-      const contact = await apiRequest(`/widget/agents/${agentId}/contacts`, {
-        method: 'POST',
-        body: contactInfo
-      });
-      state.contactId = contact.id;
-      return contact;
-    } catch (error) {
-      console.error('Failed to create contact:', error);
-      throw error;
-    }
+  // Store contact info for voice call (no backend contact creation needed for voice calls)
+  function storeContactInfo(contactInfo) {
+    state.contactInfo = contactInfo;
+    console.log('Contact info stored for voice call:', contactInfo.name);
+    return contactInfo;
   }
   
-  // Start conversation
-  async function startConversation() {
-    try {
-      const conversation = await apiRequest(`/widget/agents/${agentId}/conversations`, {
-        method: 'POST',
-        body: {
-          contactId: state.contactId,
-          title: 'Voice Call'
-        }
-      });
-      state.conversationId = conversation.id;
-      return conversation;
-    } catch (error) {
-      console.error('Failed to start conversation:', error);
-      throw error;
-    }
-  }
 
   // Voice call functions
   async function startVoiceCall() {
     try {
       console.log('Starting voice call for agent:', agentId);
       
-      // Start the voice call
+      // Start the voice call with contact info
       const callData = await apiRequest(`/widget/agents/${agentId}/voice/start`, {
         method: 'POST',
         body: {
-          contactId: state.contactId,
-          conversationId: state.conversationId
+          contactName: state.contactInfo?.name || 'Anonymous User',
+          contactEmail: state.contactInfo?.email || `anonymous-${Date.now()}@widget.voice`,
+          contactPhone: state.contactInfo?.phone || null
         }
       });
       
@@ -906,11 +882,8 @@
         submitButton.disabled = true;
         submitButton.textContent = 'Connecting...';
         
-        // Create contact
-        await createContact({ name, email, phone });
-        
-        // Start conversation
-        await startConversation();
+        // Store contact info
+        storeContactInfo({ name, email, phone });
         
         // Start voice call
         await startVoiceCall();
@@ -993,15 +966,12 @@
       // If contact info is not required, skip contact form
       if (!requireContactInfo) {
         try {
-          // Create anonymous contact
-          await createContact({
+          // Store anonymous contact info
+          storeContactInfo({
             name: 'Anonymous User',
             email: `anonymous-${Date.now()}@widget.voice`,
             phone: null
           });
-          
-          // Start conversation
-          await startConversation();
           
           // Start voice call
           await startVoiceCall();
