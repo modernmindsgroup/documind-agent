@@ -13,6 +13,9 @@ import {
   agentPreferences,
   conversations,
   messages,
+  rooms,
+  roomAgents,
+  calls,
   llmProviders,
   llmModels,
   llmConfigurations,
@@ -48,7 +51,13 @@ import {
   type Conversation,
   type InsertConversation,
   type Message,
-  type InsertMessage
+  type InsertMessage,
+  type Room,
+  type InsertRoom,
+  type RoomAgent,
+  type InsertRoomAgent,
+  type Call,
+  type InsertCall
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, like, count, sql, gte, lt } from "drizzle-orm";
@@ -191,6 +200,37 @@ export interface IStorage {
       model: string;
     };
   }, tenantId: string): Promise<Agent | null>;
+
+  // Rooms
+  getRoomsByTenant(tenantId: string, filters?: {
+    status?: string;
+    agentId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ rooms: Room[]; total: number }>;
+  getRoom(id: string, tenantId: string): Promise<Room | undefined>;
+  getRoomByAgentId(agentId: string, tenantId: string): Promise<Room | undefined>;
+  createRoom(room: InsertRoom): Promise<Room>;
+  updateRoom(id: string, room: Partial<InsertRoom>, tenantId: string): Promise<Room | undefined>;
+
+  // Room Agents
+  getRoomAgentsByRoom(roomId: string, tenantId: string): Promise<RoomAgent[]>;
+  createRoomAgent(roomAgent: InsertRoomAgent): Promise<RoomAgent>;
+  deleteRoomAgent(roomId: string, agentId: string, tenantId: string): Promise<boolean>;
+
+  // Calls
+  getCallsByTenant(tenantId: string, filters?: {
+    status?: string;
+    agentId?: string;
+    roomId?: string;
+    contactId?: string;
+    direction?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ calls: Call[]; total: number }>;
+  getCall(id: string, tenantId: string): Promise<Call | undefined>;
+  createCall(call: InsertCall): Promise<Call>;
+  updateCall(id: string, call: Partial<InsertCall>, tenantId: string): Promise<Call | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -918,6 +958,181 @@ export class DatabaseStorage implements IStorage {
       .values(message)
       .returning();
     return newMessage;
+  }
+
+  // Rooms
+  async getRoomsByTenant(tenantId: string, filters: {
+    status?: string;
+    agentId?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ rooms: Room[]; total: number }> {
+    const { status, agentId, limit = 100, offset = 0 } = filters;
+    
+    const conditions = [eq(rooms.tenantId, tenantId)];
+    
+    if (status) {
+      conditions.push(eq(rooms.status, status as any));
+    }
+    
+    if (agentId) {
+      conditions.push(eq(rooms.createdByAgentId, agentId));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [roomsList, totalResult] = await Promise.all([
+      db.select().from(rooms)
+        .where(whereClause)
+        .orderBy(desc(rooms.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(rooms).where(whereClause)
+    ]);
+
+    return { rooms: roomsList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async getRoom(id: string, tenantId: string): Promise<Room | undefined> {
+    const [room] = await db
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
+      .limit(1);
+    return room || undefined;
+  }
+
+  async getRoomByAgentId(agentId: string, tenantId: string): Promise<Room | undefined> {
+    const [room] = await db
+      .select()
+      .from(rooms)
+      .where(and(eq(rooms.createdByAgentId, agentId), eq(rooms.tenantId, tenantId)))
+      .limit(1);
+    return room || undefined;
+  }
+
+  async createRoom(room: InsertRoom): Promise<Room> {
+    const [newRoom] = await db
+      .insert(rooms)
+      .values(room)
+      .returning();
+    return newRoom;
+  }
+
+  async updateRoom(id: string, room: Partial<InsertRoom>, tenantId: string): Promise<Room | undefined> {
+    const [updated] = await db
+      .update(rooms)
+      .set(room)
+      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Room Agents
+  async getRoomAgentsByRoom(roomId: string, tenantId: string): Promise<RoomAgent[]> {
+    // First verify the room belongs to the tenant
+    const room = await this.getRoom(roomId, tenantId);
+    if (!room) return [];
+
+    return await db
+      .select()
+      .from(roomAgents)
+      .where(eq(roomAgents.roomId, roomId))
+      .orderBy(roomAgents.role); // primary first, then assistant
+  }
+
+  async createRoomAgent(roomAgent: InsertRoomAgent): Promise<RoomAgent> {
+    const [newRoomAgent] = await db
+      .insert(roomAgents)
+      .values(roomAgent)
+      .returning();
+    return newRoomAgent;
+  }
+
+  async deleteRoomAgent(roomId: string, agentId: string, tenantId: string): Promise<boolean> {
+    // First verify the room belongs to the tenant
+    const room = await this.getRoom(roomId, tenantId);
+    if (!room) return false;
+
+    const result = await db
+      .delete(roomAgents)
+      .where(and(eq(roomAgents.roomId, roomId), eq(roomAgents.agentId, agentId)));
+    
+    return result.rowCount > 0;
+  }
+
+  // Calls
+  async getCallsByTenant(tenantId: string, filters: {
+    status?: string;
+    agentId?: string;
+    roomId?: string;
+    contactId?: string;
+    direction?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ calls: Call[]; total: number }> {
+    const { status, agentId, roomId, contactId, direction, limit = 100, offset = 0 } = filters;
+    
+    const conditions = [eq(calls.tenantId, tenantId)];
+    
+    if (status) {
+      conditions.push(eq(calls.status, status as any));
+    }
+    
+    if (agentId) {
+      conditions.push(eq(calls.agentId, agentId));
+    }
+    
+    if (roomId) {
+      conditions.push(eq(calls.roomId, roomId));
+    }
+    
+    if (contactId) {
+      conditions.push(eq(calls.contactId, contactId));
+    }
+    
+    if (direction) {
+      conditions.push(eq(calls.direction, direction as any));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [callsList, totalResult] = await Promise.all([
+      db.select().from(calls)
+        .where(whereClause)
+        .orderBy(desc(calls.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(calls).where(whereClause)
+    ]);
+
+    return { calls: callsList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async getCall(id: string, tenantId: string): Promise<Call | undefined> {
+    const [call] = await db
+      .select()
+      .from(calls)
+      .where(and(eq(calls.id, id), eq(calls.tenantId, tenantId)))
+      .limit(1);
+    return call || undefined;
+  }
+
+  async createCall(call: InsertCall): Promise<Call> {
+    const [newCall] = await db
+      .insert(calls)
+      .values(call)
+      .returning();
+    return newCall;
+  }
+
+  async updateCall(id: string, call: Partial<InsertCall>, tenantId: string): Promise<Call | undefined> {
+    const [updated] = await db
+      .update(calls)
+      .set(call)
+      .where(and(eq(calls.id, id), eq(calls.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
   }
 }
 
