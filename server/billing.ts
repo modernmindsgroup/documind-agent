@@ -1,4 +1,4 @@
-import Paystack from 'paystack-sdk';
+import { Paystack } from 'paystack-sdk';
 import { db } from './db';
 import { userCredits, transactions, paymentSessions } from '@shared/schema';
 import { eq, and, sql } from 'drizzle-orm';
@@ -80,8 +80,7 @@ export class BillingService {
       const updateResult = await tx
         .update(userCredits)
         .set({ 
-          balance: sql`balance - ${cost}`,
-          updatedAt: new Date()
+          balance: sql`balance - ${cost}`
         })
         .where(and(
           eq(userCredits.userId, userId), 
@@ -124,7 +123,7 @@ export class BillingService {
 
     const response = await this.paystack!.transaction.initialize({
       email,
-      amount: amount * 100, // Convert to kobo
+      amount: Math.round(amount * 100), // Convert to kobo as integer
       currency: 'USD', // CRITICAL: Specify currency explicitly
       metadata: {
         userId,
@@ -133,6 +132,10 @@ export class BillingService {
       },
       callback_url: `${process.env.BASE_URL || 'http://localhost:5000'}/api/billing/verify`
     });
+
+    if (!response.data) {
+      throw new Error('Failed to initialize payment - invalid response from Paystack');
+    }
 
     // Save payment session
     await db.insert(paymentSessions).values({
@@ -161,8 +164,7 @@ export class BillingService {
       const updateResult = await tx
         .update(paymentSessions)
         .set({ 
-          status: 'processing',
-          updatedAt: new Date()
+          status: 'processing'
         })
         .where(and(
           eq(paymentSessions.paystackReference, reference),
@@ -197,6 +199,10 @@ export class BillingService {
       try {
         // Verify with Paystack
         const verification = await this.paystack!.transaction.verify(reference);
+        
+        if (!verification.data) {
+          throw new Error('Failed to verify payment - invalid response from Paystack');
+        }
         
         if (verification.data.status === 'success') {
           const { userId, tenantId, credits } = verification.data.metadata;
@@ -263,8 +269,7 @@ export class BillingService {
           await tx
             .update(paymentSessions)
             .set({ 
-              status: 'pending',
-              updatedAt: new Date()
+              status: 'pending'
             })
             .where(eq(paymentSessions.id, session.id));
             
@@ -276,8 +281,7 @@ export class BillingService {
         await tx
           .update(paymentSessions)
           .set({ 
-            status: 'pending',
-            updatedAt: new Date()
+            status: 'pending'
           })
           .where(eq(paymentSessions.id, session.id));
           
@@ -302,8 +306,7 @@ export class BillingService {
         await tx
           .update(userCredits)
           .set({
-            balance: sql`balance + ${SIGNUP_BONUS}`,
-            updatedAt: new Date()
+            balance: sql`balance + ${SIGNUP_BONUS}`
           })
           .where(and(eq(userCredits.userId, userId), eq(userCredits.tenantId, tenantId)));
       } else {
