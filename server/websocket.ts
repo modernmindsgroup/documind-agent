@@ -141,10 +141,27 @@ export class VoiceChatServer {
         // Audio from human -> forward to agents
         if (type === 'human') {
           const audioData = data.audio || data.audioData || data.data;
-          if (!audioData) {
-            console.error('No audio data found in message:', data);
+          console.log('Audio data validation:', {
+            hasAudio: !!data.audio,
+            hasAudioData: !!data.audioData,
+            hasData: !!data.data,
+            extractedLength: audioData ? audioData.length : 0,
+            extractedType: typeof audioData
+          });
+          
+          if (!audioData || audioData.length === 0) {
+            console.error('No audio data found in message:', {
+              type: data.type,
+              hasAudio: !!data.audio,
+              hasAudioData: !!data.audioData,
+              hasData: !!data.data,
+              roomId: data.roomId,
+              callId: data.callId
+            });
             return;
           }
+          
+          console.log(`Processing audio data: ${audioData.length} characters`);
           
           this.sendToAgentsInRoom(roomId, {
             type: 'human_audio',
