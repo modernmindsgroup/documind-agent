@@ -7,6 +7,7 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -390,7 +391,6 @@ export class VoiceChatServer {
   private async spawnAIAgent(roomId: string, tenantId?: string): Promise<void> {
     try {
       // Generate a JWT token for the agent
-      const jwt = require('jsonwebtoken');
       const agentToken = jwt.sign(
         { 
           type: 'widget_voice',
