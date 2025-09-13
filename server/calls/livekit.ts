@@ -69,7 +69,7 @@ export class LiveKitCallPlatform implements ICallPlatform {
       });
 
       // Generate LiveKit access token for the user
-      const accessToken = this.generateAccessToken(livekitRoomName, call.id, {
+      const accessToken = await this.generateAccessToken(livekitRoomName, call.id, {
         identity: `user_${call.contactId || 'anonymous'}`,
         name: 'User',
         metadata: JSON.stringify({
@@ -208,7 +208,7 @@ export class LiveKitCallPlatform implements ICallPlatform {
       const { call, room, agent } = callInfo;
       
       // Generate fresh access token
-      const accessToken = this.generateAccessToken(callInfo.livekitRoom, call.id, {
+      const accessToken = await this.generateAccessToken(callInfo.livekitRoom, call.id, {
         identity: `user_${call.contactId || 'anonymous'}`,
         name: 'User',
         metadata: JSON.stringify({
@@ -457,11 +457,11 @@ export class LiveKitCallPlatform implements ICallPlatform {
   /**
    * Generate LiveKit access token
    */
-  private generateAccessToken(roomName: string, callId: string, participant: {
+  private async generateAccessToken(roomName: string, callId: string, participant: {
     identity: string;
     name: string;
     metadata?: string;
-  }): string {
+  }): Promise<string> {
     const token = new AccessToken(
       this.config.apiKey,
       this.config.apiSecret,
@@ -505,7 +505,7 @@ export class LiveKitCallPlatform implements ICallPlatform {
       }
 
       // Generate agent access token with enhanced permissions
-      const agentToken = this.generateAccessToken(livekitRoomName, callId, {
+      const agentToken = await this.generateAccessToken(livekitRoomName, callId, {
         identity: `agent_${agent.id}`,
         name: agent.name || 'AI Agent',
         metadata: JSON.stringify({

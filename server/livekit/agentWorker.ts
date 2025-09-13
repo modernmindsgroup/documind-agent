@@ -13,6 +13,7 @@ import {
   defineAgent,
   voice,
 } from '@livekit/agents';
+import { fileURLToPath } from 'url';
 import * as deepgram from '@livekit/agents-plugin-deepgram';
 import * as livekit from '@livekit/agents-plugin-livekit';
 import * as openai from '@livekit/agents-plugin-openai';
@@ -167,6 +168,9 @@ export const livekitVoiceAgent = defineAgent({
         });
       }
 
+      // Connect to the room first (required before session.start())
+      await ctx.connect();
+
       // Start the agent session
       await session.start({
         agent: assistant,
@@ -175,9 +179,6 @@ export const livekitVoiceAgent = defineAgent({
           noiseCancellation: BackgroundVoiceCancellation(),
         },
       });
-
-      // Connect to the room
-      await ctx.connect();
       
       console.log(`✅ Agent ${agentConfig.agentName} connected to room: ${ctx.room.name}`);
       
@@ -335,12 +336,22 @@ function determineVoice(preferences: any): string {
 
 // Global worker instance for management
 let workerInstance: any = null;
+let workerPromise: Promise<void> | null = null;
 
 /**
  * Start the LiveKit agent worker
  */
 export async function startLiveKitWorker(): Promise<void> {
   try {
+    // If worker is already starting or running, don't start another
+    if (workerInstance !== null || workerPromise !== null) {
+      console.log('🔄 LiveKit Agent Worker already running or starting...');
+      if (workerPromise) {
+        await workerPromise;
+      }
+      return;
+    }
+
     console.log('🚀 Starting LiveKit Agent Worker...');
     
     // Validate required environment variables
@@ -356,22 +367,38 @@ export async function startLiveKitWorker(): Promise<void> {
       console.warn('⚠️ DEEPGRAM_API_KEY not found. STT-LLM-TTS pipeline will be limited to OpenAI models only.');
     }
 
-    // Start the LiveKit agent worker using CLI approach
-    // In v1.x, agents are typically started using the CLI module
-    console.log('🔧 Initializing LiveKit Agent Worker...');
+    // Start the LiveKit agent worker using CLI approach for v1.x
+    console.log('🔧 Starting LiveKit Agent Worker using CLI...');
     
-    // Create and store the worker options for v1.x
-    // Note: In programmatic usage, we store the agent definition for later use
-    const workerOptions = {
-      agent: livekitVoiceAgent,
-      prewarm: true,
-    };
+    // Get the current file path for the agent
+    const agentPath = fileURLToPath(new URL(import.meta.url));
+    console.log(`📁 Agent file path: ${agentPath}`);
     
-    // Store worker instance for management
-    workerInstance = true; // CLI-based worker is running
+    // Create worker promise to track startup
+    workerPromise = Promise.resolve(cli.runApp(new WorkerOptions({ 
+      agent: agentPath
+    })));
+    
+    // Start the worker in background and track it
+    workerPromise?.then(() => {
+      console.log('✅ LiveKit Agent Worker started successfully');
+      workerInstance = true;
+      workerPromise = null;
+    }).catch((error) => {
+      console.error('❌ LiveKit Agent Worker failed:', error);
+      workerInstance = null;
+      workerPromise = null;
+      throw error;
+    });
+    
+    // Give the worker a moment to initialize
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log('🏃 LiveKit Agent Worker starting in background...');
     
   } catch (error) {
     console.error('❌ Failed to start LiveKit Agent Worker:', error);
+    workerInstance = null;
+    workerPromise = null;
     throw error;
   }
 }
@@ -382,16 +409,19 @@ export async function startLiveKitWorker(): Promise<void> {
 export async function stopLiveKitWorker(): Promise<void> {
   console.log('🛑 Stopping LiveKit Agent Worker...');
   
-  if (workerInstance) {
+  if (workerInstance || workerPromise) {
     try {
-      // The worker will be stopped when the process exits
-      // LiveKit handles graceful shutdown automatically
-      console.log('✅ LiveKit Agent Worker stopped successfully');
+      // Note: LiveKit CLI workers typically handle graceful shutdown automatically
+      // when the main process exits. For programmatic control, we mark as stopped.
+      console.log('✅ LiveKit Agent Worker marked for shutdown');
     } catch (error) {
       console.error('❌ Error stopping LiveKit Agent Worker:', error);
     } finally {
       workerInstance = null;
+      workerPromise = null;
     }
+  } else {
+    console.log('ℹ️ LiveKit Agent Worker was not running');
   }
 }
 
@@ -399,7 +429,7 @@ export async function stopLiveKitWorker(): Promise<void> {
  * Check if the LiveKit agent worker is running
  */
 export function isWorkerRunning(): boolean {
-  return workerInstance !== null;
+  return workerInstance !== null || workerPromise !== null;
 }
 
 /**
@@ -407,7 +437,13 @@ export function isWorkerRunning(): boolean {
  */
 export async function getWorkerHealth(): Promise<{ healthy: boolean; message: string }> {
   try {
-    if (!workerInstance) {
+    // Check if worker is starting
+    if (workerPromise && !workerInstance) {
+      return { healthy: true, message: 'Worker starting up' };
+    }
+    
+    // Check if worker is running
+    if (!workerInstance && !workerPromise) {
       return { healthy: false, message: 'Worker not started' };
     }
     

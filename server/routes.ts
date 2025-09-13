@@ -138,7 +138,7 @@ function verifyLiveKitWebhookSignature(
     const webhookReceiver = new WebhookReceiver('', apiSecret);
     
     // Verify and decode the webhook
-    const event = webhookReceiver.receive(rawBody, authHeader);
+    const event = webhookReceiver.receive(rawBody.toString('utf8'), authHeader);
     
     return { isValid: true, payload: event };
   } catch (error) {
@@ -347,7 +347,7 @@ async function checkLiveKitEnvironment(): Promise<boolean> {
 async function checkAgentWorkerHealth(): Promise<boolean> {
   try {
     // Import worker health check function
-    const { getWorkerHealth, isWorkerRunning } = await import('../livekit/agentWorker');
+    const { getWorkerHealth, isWorkerRunning } = await import('./livekit/agentWorker');
     
     if (!isWorkerRunning()) {
       console.warn('⚠️ LiveKit agent worker not running');
@@ -371,7 +371,7 @@ async function checkAgentWorkerHealth(): Promise<boolean> {
 async function checkDatabaseHealth(): Promise<boolean> {
   try {
     // Try a simple database query to verify connectivity
-    const result = await storage.getTenants({ limit: 1 });
+    const result = await storage.getTenant('test');  // Simple tenant check
     return true;
   } catch (error) {
     console.error('❌ Database health check failed:', error);
@@ -911,10 +911,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
       const connectionInfo = await platform.startCall(call, room, agent);
 
-      // Update call status to active
+      // Update call status to connected
       await storage.updateCall(call.id, {
-        status: 'active',
-        startedAt: new Date(),
+        status: 'connected',
       }, agent.tenantId);
 
       // Build response based on platform type
