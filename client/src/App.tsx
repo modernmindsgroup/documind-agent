@@ -10,6 +10,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AppSidebar } from "./components/AppSidebar";
 import { Dashboard, ViewMode } from "./pages/Dashboard";
+import CallsPage from "./pages/CallsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
@@ -61,6 +62,13 @@ function Router() {
         <ProtectedRoute>
           <MainApp>
             <Dashboard currentView="api-keys" onViewChange={setCurrentView} />
+          </MainApp>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/calls">
+        <ProtectedRoute>
+          <MainApp>
+            <CallsPage />
           </MainApp>
         </ProtectedRoute>
       </Route>
