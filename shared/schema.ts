@@ -30,6 +30,7 @@ export const agents = pgTable("agents", {
   name: text("name").notNull(),
   description: text("description"),
   type: text("type", { enum: ["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"] }).notNull(),
+  callPlatform: text("call_platform", { enum: ["default", "livekit"] }).default("default"),
   isActive: boolean("is_active").default(false),
   editedBy: varchar("edited_by").notNull(),
   createdAt: timestamp("created_at").defaultNow(),

@@ -24,6 +24,7 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import OpenAI from "openai";
+import { callPlatformRegistry } from "./calls/index";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -469,31 +470,50 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
 
       const call = await storage.createCall(callData);
-      
-      // Generate JWT token for WebSocket authentication
-      const widgetVoiceToken = generateWidgetVoiceToken({
-        type: 'widget_voice',
-        tenantId: agent.tenantId,
-        roomId: room.id,
-        callId: call.id,
-        callToken: call.callToken,
-        agentId: agent.id,
-      });
-      
-      // Return response matching widget expectations
-      res.status(201).json({
+
+      // Use platform abstraction to start the call
+      const platform = callPlatformRegistry.getPlatformForAgent(agent);
+      console.log(`🚀 Starting call ${call.id} using platform: ${platform.name}`);
+
+      const connectionInfo = await platform.startCall(call, room, agent);
+
+      // Update call status to active
+      await storage.updateCall(call.id, {
+        status: 'active',
+        startedAt: new Date(),
+      }, agent.tenantId);
+
+      // Build response based on platform type
+      const response: any = {
         success: true,
         callId: call.id,
         roomId: room.id,
-        token: widgetVoiceToken,      // Widget expects this field name
-        jwtToken: widgetVoiceToken,   // Keep for backward compatibility
-        wsUrl: `/ws/${room.id}/human/${call.id}`,
+        token: connectionInfo.connectionToken,
+        jwtToken: connectionInfo.connectionToken, // Keep for backward compatibility
         call: {
           id: call.id,
-          status: call.status,
+          status: 'active',
           callToken: call.callToken,
-        }
-      });
+        },
+        platform: platform.type,
+      };
+
+      // Add platform-specific connection details
+      if (platform.type === 'livekit') {
+        response.livekitUrl = connectionInfo.livekitUrl;
+        response.livekitToken = connectionInfo.livekitToken;
+        response.livekitRoom = connectionInfo.additionalData?.livekitRoom;
+      } else {
+        // Default WebSocket platform
+        response.wsUrl = connectionInfo.websocketUrl || `/ws/${room.id}/human/${call.id}`;
+      }
+
+      // Add any additional platform data
+      if (connectionInfo.additionalData) {
+        response.additionalData = connectionInfo.additionalData;
+      }
+      
+      res.status(201).json(response);
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: error.errors });
@@ -534,11 +554,18 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(403).json({ error: 'Call does not belong to this agent' });
       }
 
-      // Update call status to completed
+      // Use platform abstraction to end the call
+      const platform = callPlatformRegistry.getPlatformForAgent(agent);
+      console.log(`🛑 Ending call ${call.id} using platform: ${platform.name}`);
+
+      await platform.endCall(call.id, call.roomId);
+
+      // Calculate duration
       const endedAt = new Date();
       const duration = call.startedAt ? 
         Math.floor((endedAt.getTime() - new Date(call.startedAt).getTime()) / 1000) : 0;
 
+      // Update call status in database (platform may have already done this)
       const updatedCall = await storage.updateCall(callId, {
         status: 'completed',
         endedAt: endedAt,
@@ -551,6 +578,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         callId: callId,
         status: 'completed',
         duration: duration,
+        platform: platform.type,
         call: {
           id: updatedCall?.id || callId,
           status: 'completed',

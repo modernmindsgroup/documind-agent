@@ -48,6 +48,15 @@ app.use((req, res, next) => {
   // Setup WebSocket server for voice calls
   setupWebSocketServer(httpServer);
   
+  // Initialize call platforms (must be done before registering routes)
+  try {
+    const { initializeCallPlatforms } = await import("./calls/index");
+    await initializeCallPlatforms();
+  } catch (error) {
+    console.error('❌ Failed to initialize call platforms:', error);
+    console.log('⚠️ Continuing with default WebSocket platform only');
+  }
+  
   // Register API routes
   await registerRoutes(app);
 
