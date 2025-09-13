@@ -261,8 +261,8 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>🤖 EchoAgent Chat Widget</h1>
-      <p>Test the embeddable chat widget that brings AI conversations to any website</p>
+      <h1>🤖 EchoAgent Widget Testing</h1>
+      <p>Test all three embeddable widget types that bring AI conversations to any website</p>
     </div>
 
     <div class="demo-section">
@@ -283,7 +283,14 @@
       <div class="demo-grid">
         <div class="demo-card">
           <h3>🚀 Live Widget Test</h3>
-          <p>Test the chat widget with your own agent configuration</p>
+          <p>Choose widget type and test with your agent configuration</p>
+          
+          <select id="widgetTypeSelect" class="agent-id-input" style="margin-bottom: 10px;">
+            <option value="chat-voice">Chat + Voice Widget (Full Featured)</option>
+            <option value="chat-only">Chat Only Widget (Text Only)</option>
+            <option value="voice-only">Voice Only Widget (Voice Only)</option>
+          </select>
+          
           <input 
             type="text" 
             id="agentIdInput" 
@@ -299,6 +306,9 @@
         <div class="demo-card">
           <h3>📊 Widget Status</h3>
           <p>Current widget and API connection status</p>
+          <div id="widgetTypeDisplay" style="margin: 15px 0; font-weight: bold; color: var(--primary-blue);">
+            Selected: Chat + Voice Widget
+          </div>
           <div id="widgetStatus" style="margin: 15px 0;">
             <span class="status-indicator offline"></span>
             <span>Widget Not Loaded</span>
@@ -311,9 +321,9 @@
 
         <div class="demo-card">
           <h3>💬 Integration Code</h3>
-          <p>Copy this code to embed the widget on any website</p>
+          <p>Copy this code to embed the selected widget type on any website</p>
           <div class="embed-code" id="embedCode">
-&lt;!-- EchoAgent Chat Widget --&gt;
+&lt;!-- <span id="widgetComment">EchoAgent Chat + Voice Widget</span> --&gt;
 &lt;script 
   src="<span id="widgetUrl">https://your-domain.com/chat-widget.js</span>"
   data-agent-id="<span id="embedAgentId">YOUR_AGENT_ID</span>"&gt;
@@ -396,8 +406,44 @@
   <script>
     let widgetLoaded = false;
     
-    // Update widget URL to current domain
-    document.getElementById('widgetUrl').textContent = window.location.origin + '/chat-widget.js';
+    // Widget type configurations
+    const widgetTypes = {
+      'chat-voice': {
+        name: 'Chat + Voice Widget',
+        fileName: 'chat-widget.js',
+        description: 'Full Featured'
+      },
+      'chat-only': {
+        name: 'Chat Only Widget',
+        fileName: 'chat-only-widget.js',
+        description: 'Text Only'
+      },
+      'voice-only': {
+        name: 'Voice Only Widget',
+        fileName: 'voice-only-widget.js',
+        description: 'Voice Only'
+      }
+    };
+    
+    // Initialize display
+    updateWidgetTypeDisplay();
+    updateEmbedCode();
+    
+    function updateWidgetTypeDisplay() {
+      const selectedType = document.getElementById('widgetTypeSelect').value;
+      const config = widgetTypes[selectedType];
+      document.getElementById('widgetTypeDisplay').textContent = `Selected: ${config.name}`;
+    }
+    
+    function updateEmbedCode() {
+      const selectedType = document.getElementById('widgetTypeSelect').value;
+      const config = widgetTypes[selectedType];
+      const agentId = document.getElementById('agentIdInput').value.trim() || 'YOUR_AGENT_ID';
+      
+      document.getElementById('widgetUrl').textContent = window.location.origin + '/' + config.fileName;
+      document.getElementById('widgetComment').textContent = 'EchoAgent ' + config.name;
+      document.getElementById('embedAgentId').textContent = agentId;
+    }
     
     function updateStatus(elementId, isOnline, text) {
       const element = document.getElementById(elementId);
@@ -423,43 +469,41 @@
     
     function loadWidget() {
       const agentId = document.getElementById('agentIdInput').value.trim();
+      const selectedType = document.getElementById('widgetTypeSelect').value;
+      const config = widgetTypes[selectedType];
       
       if (!agentId) {
         alert('Please enter a valid Agent ID');
         return;
       }
       
-      // Remove existing widget if any
-      const existingWidget = document.querySelector('.echoagent-widget-container');
-      if (existingWidget) {
-        existingWidget.remove();
-      }
+      // Remove existing widget containers
+      const existingWidgets = document.querySelectorAll('.echoagent-widget-container, .chat-widget-container, .voice-widget-container');
+      existingWidgets.forEach(widget => widget.remove());
       
-      // Remove existing script if any
-      const existingScript = document.querySelector('script[src*="chat-widget.js"]');
-      if (existingScript) {
-        existingScript.remove();
-      }
+      // Remove existing widget scripts
+      const existingScripts = document.querySelectorAll('script[src*="widget.js"]');
+      existingScripts.forEach(script => script.remove());
       
       // Create and load widget script
       const script = document.createElement('script');
-      script.src = '/chat-widget.js';
+      script.src = '/' + config.fileName;
       script.setAttribute('data-agent-id', agentId);
       
       script.onload = function() {
         widgetLoaded = true;
-        updateStatus('widgetStatus', true, 'Widget Loaded Successfully');
+        updateStatus('widgetStatus', true, `${config.name} Loaded Successfully`);
         
         // Update embed code
-        document.getElementById('embedAgentId').textContent = agentId;
+        updateEmbedCode();
         
         // Show success message
-        showNotification('Widget loaded! Check the bottom-right corner.', 'success');
+        showNotification(`${config.name} loaded! Check the bottom-right corner.`, 'success');
       };
       
       script.onerror = function() {
         updateStatus('widgetStatus', false, 'Widget Load Failed');
-        showNotification('Failed to load widget. Please check the Agent ID.', 'error');
+        showNotification(`Failed to load ${config.name}. Please check the Agent ID.`, 'error');
       };
       
       document.head.appendChild(script);
@@ -521,6 +565,20 @@
     // Check API status on load
     checkApiStatus();
     
+    // Add event listeners
+    document.getElementById('widgetTypeSelect').addEventListener('change', function() {
+      updateWidgetTypeDisplay();
+      updateEmbedCode();
+      
+      // Reset widget status when type changes
+      updateStatus('widgetStatus', false, 'Widget Not Loaded');
+      widgetLoaded = false;
+    });
+    
+    document.getElementById('agentIdInput').addEventListener('input', function() {
+      updateEmbedCode();
+    });
+    
     // Add enter key support for agent ID input
     document.getElementById('agentIdInput').addEventListener('keypress', function(e) {
       if (e.key === 'Enter') {
@@ -528,9 +586,10 @@
       }
     });
     
-    // Auto-update embed code URL
+    // Initialize on page load
     window.addEventListener('load', function() {
-      document.getElementById('widgetUrl').textContent = window.location.origin + '/chat-widget.js';
+      updateWidgetTypeDisplay();
+      updateEmbedCode();
     });
   </script>
 </body>
