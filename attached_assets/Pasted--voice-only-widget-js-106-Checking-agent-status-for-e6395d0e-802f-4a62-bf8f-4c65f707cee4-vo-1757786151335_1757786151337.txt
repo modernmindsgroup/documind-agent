@@ -1,0 +1,31 @@
+
+﻿
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: 
+{available: true, ts: 1757786112880}
+voice-only-widget.js:119 ✅ Agent is available and ready
+voice-only-widget.js:99 Contact info stored for voice call: Modern Minds
+voice-only-widget.js:212 📞 Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: 
+{available: true, ts: 1757786116044}
+voice-only-widget.js:119 ✅ Agent is available and ready
+voice-only-widget.js:227 ✅ Agent is available, starting voice call
+voice-only-widget.js:189 🔄 Attempt 1/3 for operation
+voice-only-widget.js:243 📞 Voice call started: 
+{success: true, callId: 'bc6f5f90-a2c8-4813-acf7-1ed284606aa9', roomId: '0697860b-f555-4fae-a62a-98c4ee519e63', token: 'eyJhbGciOiJIUzI1NiJ9.eyJtZXRhZGF0YSI6IntcImNhbGxJZ…FjIn0.I1i-_nYUnuYApGUAAGKsgE8EaJf5YBEyu91jpAG5iV4', jwtToken: 'eyJhbGciOiJIUzI1NiJ9.eyJtZXRhZGF0YSI6IntcImNhbGxJZ…FjIn0.I1i-_nYUnuYApGUAAGKsgE8EaJf5YBEyu91jpAG5iV4', …}
+voice-only-widget.js:340 Connecting to WebSocket: wss://745d7d39-53e1-43dc-8cf9-d73f48b9b330-00-27t3ik7n9r2t0.worf.replit.dev…60b-f555-4fae-a62a-98c4ee519e63/human/bc6f5f90-a2c8-4813-acf7-1ed284606aa9
+voice-only-widget.js:346 WebSocket connected for voice call
+voice-only-widget.js:374 Received WebSocket message: 
+{type: 'error', message: 'Invalid or expired JWT token'}
+voice-only-widget.js:397 
+ Voice WebSocket error: Invalid or expired JWT token
+[NEW] Explain Console errors by using Copilot in Edge: click 
+ to explain an error. Learn more
+Don't show again
+voice-only-widget.js:359 WebSocket connection closed: 1005 
+voice-only-widget.js:409 Requesting microphone access...
+voice-only-widget.js:421 Microphone access granted
+voice-only-widget.js:460 Recording started
+voice-only-widget.js:474 Stopping recording...
+voice-only-widget.js:440 Recording stopped
