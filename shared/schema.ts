@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, boolean, integer, decimal, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -341,6 +341,54 @@ export const calls = pgTable("calls", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// User credits and billing
+export const userCredits = pgTable("user_credits", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  tenantId: varchar("tenant_id").notNull(),
+  balance: decimal("balance", { precision: 10, scale: 3 }).default("0.000").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  // Ensure one credit record per user-tenant combination
+  uniqueUserTenant: uniqueIndex("unique_user_tenant_credits").on(table.userId, table.tenantId),
+}));
+
+// Transaction history
+export const transactions = pgTable("transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  tenantId: varchar("tenant_id").notNull(),
+  type: text("type", { enum: ["topup", "deduction", "bonus"] }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 3 }).notNull(),
+  description: text("description").notNull(),
+  reference: text("reference"), // Paystack reference for topups
+  messageId: text("message_id"), // Message ID for deduction idempotency
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  // Prevent duplicate message charges - unique constraint for deduction transactions with messageId
+  uniqueMessageDeduction: uniqueIndex("unique_message_deduction")
+    .on(table.tenantId, table.userId, table.type, table.messageId)
+    .where(sql`${table.type} = 'deduction' AND ${table.messageId} IS NOT NULL`),
+}));
+
+// Payment sessions
+export const paymentSessions = pgTable("payment_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  tenantId: varchar("tenant_id").notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  paystackReference: text("paystack_reference").notNull(),
+  status: text("status", { enum: ["pending", "processing", "completed", "failed"] }).notNull().default("pending"),
+  authorizationUrl: text("authorization_url"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  // Ensure unique Paystack references to prevent duplicate payment processing
+  uniquePaystackReference: uniqueIndex("unique_paystack_reference").on(table.paystackReference),
+}));
+
 // Define relations for foreign keys
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
@@ -357,6 +405,9 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   messages: many(messages),
   rooms: many(rooms),
   calls: many(calls),
+  userCredits: many(userCredits),
+  transactions: many(transactions),
+  paymentSessions: many(paymentSessions),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -365,6 +416,9 @@ export const usersRelations = relations(users, ({ one, many }) => ({
     references: [tenants.id],
   }),
   editedAgents: many(agents),
+  userCredits: one(userCredits),
+  transactions: many(transactions),
+  paymentSessions: many(paymentSessions),
 }));
 
 export const agentsRelations = relations(agents, ({ one, many }) => ({
@@ -543,6 +597,39 @@ export const callsRelations = relations(calls, ({ one }) => ({
   }),
 }));
 
+export const userCreditsRelations = relations(userCredits, ({ one }) => ({
+  user: one(users, {
+    fields: [userCredits.userId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [userCredits.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const transactionsRelations = relations(transactions, ({ one }) => ({
+  user: one(users, {
+    fields: [transactions.userId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [transactions.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
+export const paymentSessionsRelations = relations(paymentSessions, ({ one }) => ({
+  user: one(users, {
+    fields: [paymentSessions.userId],
+    references: [users.id],
+  }),
+  tenant: one(tenants, {
+    fields: [paymentSessions.tenantId],
+    references: [tenants.id],
+  }),
+}));
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -666,6 +753,31 @@ export const updateCallSchema = createInsertSchema(calls).pick({
   metadata: true,
 }).partial();
 
+export const insertUserCreditsSchema = createInsertSchema(userCredits).pick({
+  userId: true,
+  tenantId: true,
+  balance: true,
+});
+
+export const insertTransactionSchema = createInsertSchema(transactions).pick({
+  userId: true,
+  tenantId: true,
+  type: true,
+  amount: true,
+  description: true,
+  reference: true,
+  metadata: true,
+});
+
+export const insertPaymentSessionSchema = createInsertSchema(paymentSessions).pick({
+  userId: true,
+  tenantId: true,
+  amount: true,
+  paystackReference: true,
+  status: true,
+  authorizationUrl: true,
+});
+
 
 
 
@@ -703,6 +815,12 @@ export type InsertRoomAgent = z.infer<typeof insertRoomAgentSchema>;
 export type RoomAgent = typeof roomAgents.$inferSelect;
 export type InsertCall = z.infer<typeof insertCallSchema>;
 export type Call = typeof calls.$inferSelect;
+export type InsertUserCredits = z.infer<typeof insertUserCreditsSchema>;
+export type UserCredits = typeof userCredits.$inferSelect;
+export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertPaymentSession = z.infer<typeof insertPaymentSessionSchema>;
+export type PaymentSession = typeof paymentSessions.$inferSelect;
 
 // Shared API Response Types - prevent type drift between server and client
 export interface DashboardMetrics {

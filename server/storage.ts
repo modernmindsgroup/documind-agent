@@ -19,6 +19,9 @@ import {
   llmProviders,
   llmModels,
   llmConfigurations,
+  userCredits,
+  transactions,
+  paymentSessions,
   type User, 
   type InsertUser,
   type Tenant,
@@ -49,7 +52,13 @@ import {
   type RoomAgent,
   type InsertRoomAgent,
   type Call,
-  type InsertCall
+  type InsertCall,
+  type UserCredits,
+  type InsertUserCredits,
+  type Transaction,
+  type InsertTransaction,
+  type PaymentSession,
+  type InsertPaymentSession
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, like, count, sql, gte, lt } from "drizzle-orm";
@@ -232,6 +241,20 @@ export interface IStorage {
   getCall(id: string, tenantId: string): Promise<Call | undefined>;
   createCall(call: InsertCall): Promise<Call>;
   updateCall(id: string, call: Partial<InsertCall>, tenantId: string): Promise<Call | undefined>;
+
+  // Billing
+  getUserCredits(userId: string, tenantId: string): Promise<UserCredits | undefined>;
+  createUserCredits(userCredits: InsertUserCredits): Promise<UserCredits>;
+  updateUserCredits(userId: string, tenantId: string, balance: string): Promise<UserCredits | undefined>;
+  getTransactionsByUser(userId: string, tenantId: string, filters?: {
+    type?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ transactions: Transaction[]; total: number }>;
+  createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  getPaymentSessionByReference(reference: string): Promise<PaymentSession | undefined>;
+  createPaymentSession(session: InsertPaymentSession): Promise<PaymentSession>;
+  updatePaymentSession(reference: string, updates: Partial<InsertPaymentSession>): Promise<PaymentSession | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1268,6 +1291,97 @@ export class DatabaseStorage implements IStorage {
       .update(calls)
       .set(call)
       .where(and(eq(calls.id, id), eq(calls.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Billing methods
+  async getUserCredits(userId: string, tenantId: string): Promise<UserCredits | undefined> {
+    const [credits] = await db
+      .select()
+      .from(userCredits)
+      .where(and(eq(userCredits.userId, userId), eq(userCredits.tenantId, tenantId)))
+      .limit(1);
+    return credits || undefined;
+  }
+
+  async createUserCredits(insertUserCredits: InsertUserCredits): Promise<UserCredits> {
+    const [credits] = await db
+      .insert(userCredits)
+      .values(insertUserCredits)
+      .returning();
+    return credits;
+  }
+
+  async updateUserCredits(userId: string, tenantId: string, balance: string): Promise<UserCredits | undefined> {
+    const [updated] = await db
+      .update(userCredits)
+      .set({ 
+        balance,
+        updatedAt: new Date()
+      })
+      .where(and(eq(userCredits.userId, userId), eq(userCredits.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getTransactionsByUser(userId: string, tenantId: string, filters: {
+    type?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ transactions: Transaction[]; total: number }> {
+    const { type, limit = 50, offset = 0 } = filters;
+    
+    const conditions = [eq(transactions.userId, userId), eq(transactions.tenantId, tenantId)];
+    
+    if (type) {
+      conditions.push(eq(transactions.type, type as any));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [transactionsList, totalResult] = await Promise.all([
+      db.select().from(transactions)
+        .where(whereClause)
+        .orderBy(desc(transactions.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(transactions).where(whereClause)
+    ]);
+
+    return { transactions: transactionsList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async createTransaction(insertTransaction: InsertTransaction): Promise<Transaction> {
+    const [transaction] = await db
+      .insert(transactions)
+      .values(insertTransaction)
+      .returning();
+    return transaction;
+  }
+
+  async getPaymentSessionByReference(reference: string): Promise<PaymentSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(paymentSessions)
+      .where(eq(paymentSessions.paystackReference, reference))
+      .limit(1);
+    return session || undefined;
+  }
+
+  async createPaymentSession(insertSession: InsertPaymentSession): Promise<PaymentSession> {
+    const [session] = await db
+      .insert(paymentSessions)
+      .values(insertSession)
+      .returning();
+    return session;
+  }
+
+  async updatePaymentSession(reference: string, updates: Partial<InsertPaymentSession>): Promise<PaymentSession | undefined> {
+    const [updated] = await db
+      .update(paymentSessions)
+      .set(updates)
+      .where(eq(paymentSessions.paystackReference, reference))
       .returning();
     return updated || undefined;
   }

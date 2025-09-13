@@ -21,6 +21,7 @@ import {
 import { z } from "zod";
 import OpenAI from "openai";
 import * as crypto from "crypto";
+import { BillingService, getBillingService } from "./billing";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -55,6 +56,11 @@ const widgetMessageSchema = z.object({
 
 const widgetChatSchema = z.object({
   message: z.string().min(1, "Message is required"),
+});
+
+// Billing validation schemas
+const topupSchema = z.object({
+  amount: z.number().min(1, "Minimum top-up amount is $1"),
 });
 
 
@@ -92,6 +98,15 @@ export async function registerRoutes(app: Express): Promise<void> {
         tenantId: tenant.id,
       });
 
+      // Grant signup bonus (gracefully handle billing service unavailability)
+      try {
+        const billingService = getBillingService();
+        await billingService.grantSignupBonus(user.id, user.tenantId);
+      } catch (bonusError) {
+        console.error('Failed to grant signup bonus:', bonusError);
+        // Don't fail registration if bonus fails - billing might not be configured
+      }
+
       const token = generateToken({
         id: user.id,
         username: user.username,
@@ -109,6 +124,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           role: user.role,
           tenantId: user.tenantId,
         },
+        signupBonus: 10.0, // Inform frontend about the bonus
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -376,6 +392,38 @@ export async function registerRoutes(app: Express): Promise<void> {
       const agent = await storage.getAgent(conversation.agentId, conversation.tenantId);
       if (!agent) {
         return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Get tenant info to find user for billing
+      const tenant = await storage.getTenant(conversation.tenantId);
+      if (!tenant) {
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      // Check credits and calculate cost (estimate tokens for billing)
+      const messageTokens = Math.ceil(validatedData.message.length / 4); // Rough token estimation
+      try {
+        // Deduct credits for the message processing (will throw error if insufficient)
+        const billingService = getBillingService();
+        await billingService.deductCredits(
+          tenant.ownerId, 
+          conversation.tenantId, 
+          messageTokens, 
+          conversationId
+        );
+      } catch (billingError: any) {
+        if (billingError.message === 'Insufficient credits') {
+          return res.status(402).json({ 
+            error: 'Insufficient credits. Please top up your account to continue using the chat service.',
+            code: 'INSUFFICIENT_CREDITS'
+          });
+        }
+        if (billingError.message?.includes('Paystack secret key')) {
+          console.log('Billing service not configured - allowing free chat usage');
+        } else {
+          // Log billing errors but don't block chat if billing service is down
+          console.error('Billing error (non-blocking):', billingError);
+        }
       }
 
       // Save user message first
@@ -1128,6 +1176,205 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error('Test agent error:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Billing API endpoints
+  
+  // Get user credit balance
+  app.get('/api/billing/balance', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const billingService = getBillingService();
+      const balance = await billingService.getUserBalance(req.user!.id, req.user!.tenantId);
+      
+      // Include some additional helpful information
+      res.json({ 
+        balance,
+        formatted: `$${balance.toFixed(3)}`,
+        currency: 'USD',
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('Get balance error:', error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve credit balance', 
+        details: 'Please refresh the page or contact support' 
+      });
+    }
+  });
+
+  // Initialize payment
+  app.post('/api/billing/topup', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = topupSchema.parse(req.body);
+      const { amount } = validatedData;
+      const { email } = req.user!;
+      
+      // Server-side validation for security
+      if (!amount || typeof amount !== 'number' || amount < 1 || amount > 1000) {
+        return res.status(400).json({ 
+          error: 'Invalid amount', 
+          details: 'Amount must be between $1 and $1000' 
+        });
+      }
+      
+      const billingService = getBillingService();
+      const payment = await billingService.initializePayment(
+        req.user!.id,
+        req.user!.tenantId,
+        amount,
+        email
+      );
+
+      console.log(`Payment initialized for user ${req.user!.id}: $${amount}`);
+      res.json(payment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Validation failed', 
+          details: error.errors 
+        });
+      }
+      
+      // Handle specific billing service errors
+      if (error instanceof Error) {
+        if (error.message.includes('Invalid payment parameters')) {
+          return res.status(400).json({ error: error.message });
+        }
+        if (error.message.includes('Paystack')) {
+          return res.status(503).json({ 
+            error: 'Payment service temporarily unavailable', 
+            details: 'Please try again in a few moments'
+          });
+        }
+      }
+      
+      console.error('Initialize payment error:', error);
+      res.status(500).json({ error: 'Failed to initialize payment' });
+    }
+  });
+
+  // Verify payment (public endpoint - accessed via Paystack callback)
+  app.get('/api/billing/verify/:reference', async (req, res) => {
+    try {
+      const { reference } = req.params;
+      
+      // Basic validation
+      if (!reference || typeof reference !== 'string' || reference.length < 10) {
+        console.error(`Invalid payment reference: ${reference}`);
+        return res.redirect('/billing?payment=error&reason=invalid_reference');
+      }
+      
+      console.log(`Processing payment verification for reference: ${reference}`);
+      const billingService = getBillingService();
+      const verification = await billingService.verifyPayment(reference);
+      
+      if (verification.status === 'success' || (verification.data && verification.data.status === 'success')) {
+        console.log(`Payment verification successful: ${reference}`);
+        res.redirect('/billing?payment=success');
+      } else if (verification.status === 'failed' || (verification.data && verification.data.status === 'failed')) {
+        console.log(`Payment verification failed: ${reference}`);
+        res.redirect('/billing?payment=failed');
+      } else {
+        console.log(`Payment verification pending/unknown: ${reference}`);
+        res.redirect('/billing?payment=pending');
+      }
+    } catch (error) {
+      console.error('Verify payment error:', error);
+      
+      // More specific error handling
+      if (error instanceof Error) {
+        if (error.message.includes('Payment session not found')) {
+          return res.redirect('/billing?payment=error&reason=session_not_found');
+        }
+        if (error.message.includes('already processed')) {
+          return res.redirect('/billing?payment=success');
+        }
+      }
+      
+      res.redirect('/billing?payment=error');
+    }
+  });
+
+  // Get transaction history
+  app.get('/api/billing/transactions', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { type, limit, offset } = req.query;
+      
+      // Validate query parameters
+      const parsedLimit = limit ? parseInt(limit as string) : 50;
+      const parsedOffset = offset ? parseInt(offset as string) : 0;
+      
+      if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        return res.status(400).json({ 
+          error: 'Invalid limit parameter', 
+          details: 'Limit must be between 1 and 100' 
+        });
+      }
+      
+      if (isNaN(parsedOffset) || parsedOffset < 0) {
+        return res.status(400).json({ 
+          error: 'Invalid offset parameter', 
+          details: 'Offset must be 0 or greater' 
+        });
+      }
+      
+      if (type && !['topup', 'deduction', 'bonus'].includes(type as string)) {
+        return res.status(400).json({ 
+          error: 'Invalid type parameter', 
+          details: 'Type must be one of: topup, deduction, bonus' 
+        });
+      }
+      
+      const result = await storage.getTransactionsByUser(req.user!.id, req.user!.tenantId, {
+        type: type as string,
+        limit: parsedLimit,
+        offset: parsedOffset,
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('Get transactions error:', error);
+      res.status(500).json({ error: 'Failed to retrieve transaction history' });
+    }
+  });
+
+  // Payment verification status endpoint (semi-protected - requires valid reference)
+  app.get('/api/billing/verify/:reference/status', async (req, res) => {
+    try {
+      const { reference } = req.params;
+      
+      // Basic validation
+      if (!reference || typeof reference !== 'string' || reference.length < 10) {
+        return res.status(400).json({ 
+          error: 'Invalid reference parameter', 
+          details: 'Reference must be a valid payment reference' 
+        });
+      }
+      
+      const session = await storage.getPaymentSessionByReference(reference);
+      
+      if (!session) {
+        return res.status(404).json({ 
+          error: 'Payment session not found', 
+          details: 'No payment session found with the provided reference' 
+        });
+      }
+
+      // Return limited information for security
+      res.json({
+        status: session.status,
+        reference: session.paystackReference,
+        amount: parseFloat(session.amount),
+        createdAt: session.createdAt,
+        completedAt: session.completedAt
+      });
+    } catch (error) {
+      console.error('Get payment status error:', error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve payment status', 
+        details: 'Please try again or contact support if the issue persists' 
+      });
     }
   });
 

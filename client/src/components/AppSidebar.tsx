@@ -13,6 +13,7 @@ import {
   LayoutDashboard,
   ChevronDown,
   Zap,
+  CreditCard,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -51,6 +52,11 @@ const menuItems: SidebarItem[] = [
     title: "Calls",
     url: "/calls",
     icon: PhoneCall,
+  },
+  {
+    title: "Billing",
+    url: "/billing",
+    icon: CreditCard,
   },
   {
     title: "Build",

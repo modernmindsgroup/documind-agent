@@ -11,6 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { AppSidebar } from "./components/AppSidebar";
 import { Dashboard, ViewMode } from "./pages/Dashboard";
 import CallsPage from "./pages/CallsPage";
+import BillingPage from "./pages/BillingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
@@ -69,6 +70,13 @@ function Router() {
         <ProtectedRoute>
           <MainApp>
             <CallsPage />
+          </MainApp>
+        </ProtectedRoute>
+      </Route>
+      <Route path="/billing">
+        <ProtectedRoute>
+          <MainApp>
+            <BillingPage />
           </MainApp>
         </ProtectedRoute>
       </Route>
