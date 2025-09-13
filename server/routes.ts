@@ -1530,9 +1530,22 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.get('/api/agents/:id/preferences', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
       const preferences = await storage.getAgentPreferences(req.params.id, req.user!.tenantId);
+      
+      // If no preferences exist yet, return default preferences instead of 404
       if (!preferences) {
-        return res.status(404).json({ error: 'Agent preferences not found' });
+        const defaultPreferences = {
+          agentId: req.params.id,
+          isContactRequired: true,
+          displayName: '', // Will be populated from agent name if needed
+          widgetTheme: {
+            primaryColor: '#2563eb',
+            secondaryColor: '#1d4ed8'
+          },
+          realtimeVoicePlatform: 'livekit' // Default to LiveKit
+        };
+        return res.json(defaultPreferences);
       }
+      
       res.json(preferences);
     } catch (error) {
       console.error('Get agent preferences error:', error);

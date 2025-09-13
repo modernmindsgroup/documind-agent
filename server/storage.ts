@@ -371,11 +371,22 @@ export class DatabaseStorage implements IStorage {
     if (!agent) return undefined;
 
     const updateData = { ...preferences }; // Removed updatedAt as it may not exist in schema
-    const [updated] = await db
+    
+    // Use upsert pattern: try to update first, if no rows affected, insert new
+    let updated = await db
       .update(agentPreferences)
       .set(updateData)
       .where(eq(agentPreferences.agentId, agentId))
       .returning();
+
+    // If no rows were updated (preferences don't exist yet), create them
+    if (updated.length === 0) {
+      const insertData = { agentId, ...updateData };
+      updated = await db
+        .insert(agentPreferences)
+        .values(insertData)
+        .returning();
+    }
 
     // If realtimeVoicePlatform is being updated, also update the agent's callPlatform field
     if (preferences.realtimeVoicePlatform) {
@@ -397,7 +408,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)));
     }
 
-    return updated || undefined;
+    return updated[0] || undefined;
   }
 
   async updateAgent(id: string, agent: Partial<InsertAgent>, tenantId: string): Promise<Agent | undefined> {
