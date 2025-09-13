@@ -7,6 +7,7 @@ import {
   Webhook,
   KeyRound,
   Phone,
+  PhoneCall,
   MessageSquare,
   Activity,
   LayoutDashboard,
@@ -45,6 +46,11 @@ const menuItems: SidebarItem[] = [
     url: "/",
     icon: LayoutDashboard,
     isActive: true,
+  },
+  {
+    title: "Calls",
+    url: "/calls",
+    icon: PhoneCall,
   },
   {
     title: "Build",
