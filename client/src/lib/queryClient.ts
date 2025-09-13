@@ -32,12 +32,43 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+// Helper function to check if a value is a plain object (not array, null, or other types)
+function isPlainObject(obj: unknown): obj is Record<string, unknown> {
+  return obj !== null && typeof obj === 'object' && !Array.isArray(obj) && obj.constructor === Object;
+}
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    // Handle query parameters by detecting if the last element is a plain object
+    const parts = [...queryKey];
+    let params: Record<string, unknown> | undefined;
+    
+    // If the last element is a plain object, treat it as query parameters
+    if (parts.length > 0 && isPlainObject(parts[parts.length - 1])) {
+      params = parts.pop() as Record<string, unknown>;
+    }
+    
+    // Build the base URL from remaining parts
+    let url = parts.join("/") as string;
+    
+    // Add query parameters if they exist
+    if (params) {
+      const searchParams = new URLSearchParams();
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.set(key, String(value));
+        }
+      }
+      const queryString = searchParams.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+    }
+
+    const res = await fetch(url, {
       headers: getAuthHeaders(),
       credentials: "include",
     });

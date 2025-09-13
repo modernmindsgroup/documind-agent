@@ -134,6 +134,15 @@ export default function AgentsPage() {
     enabled: !!selectedAgent?.id,
   });
 
+  // Fetch conversation count for badge
+  const { data: conversationCount } = useQuery<{
+    conversations: Array<any>;
+    total: number;
+  }>({
+    queryKey: ['/api/conversations', { agentId: selectedAgent?.id }],
+    enabled: !!selectedAgent?.id,
+  });
+
   // Mutations for agent actions
   const toggleStatusMutation = useMutation({
     mutationFn: async ({ agentId, isActive }: { agentId: string; isActive: boolean }) => {
@@ -521,6 +530,11 @@ export default function AgentsPage() {
                   <TabsTrigger value="conversation-history" className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4" />
                     Conversations
+                    {conversationCount?.total ? (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                        {conversationCount.total}
+                      </Badge>
+                    ) : null}
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1304,12 +1318,29 @@ function ConversationHistory({ agentId }: { agentId: string }) {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [isMessageViewerOpen, setIsMessageViewerOpen] = useState(false);
 
-  const { data: conversations, isLoading: conversationsLoading } = useQuery({
+  const { data: conversationsData, isLoading: conversationsLoading } = useQuery<{
+    conversations: Array<{
+      id: string;
+      title: string;
+      contactId?: string;
+      updatedAt: string;
+      isActive: boolean;
+    }>;
+    total: number;
+  }>({
     queryKey: ['/api/conversations', { agentId, search }],
     enabled: !!agentId,
   });
 
-  const { data: messages, isLoading: messagesLoading } = useQuery({
+  const { data: messagesData, isLoading: messagesLoading } = useQuery<{
+    messages: Array<{
+      id: string;
+      content: string;
+      role: 'user' | 'assistant' | 'system';
+      createdAt: string;
+    }>;
+    total: number;
+  }>({
     queryKey: ['/api/conversations', selectedConversationId, 'messages'],
     enabled: !!selectedConversationId,
   });
@@ -1354,8 +1385,8 @@ function ConversationHistory({ agentId }: { agentId: string }) {
                 </div>
               ))}
             </div>
-          ) : conversations?.conversations?.length ? (
-            conversations.conversations.map((conversation: any) => (
+          ) : conversationsData?.conversations?.length ? (
+            conversationsData.conversations.map((conversation) => (
               <div
                 key={conversation.id}
                 className="p-4 border border-border rounded-lg hover-elevate cursor-pointer"
@@ -1392,7 +1423,7 @@ function ConversationHistory({ agentId }: { agentId: string }) {
         <SheetContent side="right" className="w-full max-w-2xl p-0">
           <SheetHeader className="p-4 border-b border-border">
             <SheetTitle>
-              {conversations?.conversations?.find((c: any) => c.id === selectedConversationId)?.title || 'Conversation'}
+              {conversationsData?.conversations?.find((c) => c.id === selectedConversationId)?.title || 'Conversation'}
             </SheetTitle>
             <p className="text-sm text-muted-foreground">Message History</p>
           </SheetHeader>
@@ -1411,8 +1442,8 @@ function ConversationHistory({ agentId }: { agentId: string }) {
                   </div>
                 ))}
               </div>
-            ) : messages?.messages?.length ? (
-              messages.messages.map((message: any) => (
+            ) : messagesData?.messages?.length ? (
+              messagesData.messages.map((message) => (
                 <div key={message.id} className="flex gap-3" data-testid={`message-row-${message.id}`}>
                   <div className={cn(
                     "h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium",
