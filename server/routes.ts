@@ -640,6 +640,109 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // Public agent status endpoint for widget (no auth required)
+  app.get('/api/widget/agents/:agentId/status', async (req, res) => {
+    try {
+      const { agentId } = req.params;
+      
+      // Validate agent ID format
+      if (!agentId || typeof agentId !== 'string') {
+        return res.json({ 
+          available: false, 
+          reason: 'Invalid agent ID', 
+          ts: Date.now() 
+        });
+      }
+      
+      // Verify agent exists (this is the only database call we need)
+      const agent = await storage.getAgentById(agentId);
+      if (!agent) {
+        return res.json({ 
+          available: false, 
+          reason: 'Agent not found', 
+          ts: Date.now() 
+        });
+      }
+
+      // Check overall platform health
+      const platformHealth = await callPlatformRegistry.checkHealth();
+      
+      // Get specific platform for this agent
+      const platform = callPlatformRegistry.getPlatformForAgent(agent);
+      const platformType = platform.type;
+
+      // Check LiveKit-specific health if this is a LiveKit agent
+      let workerHealth = { healthy: true, message: 'Ready' };
+      let environmentReady = true;
+      
+      if (agent.callPlatform === 'livekit' || platformType === 'livekit') {
+        try {
+          // Import LiveKit worker health functions
+          const { getWorkerHealth } = await import('./livekit/agentWorker');
+          
+          // Check worker health
+          workerHealth = await getWorkerHealth();
+          
+          // Check environment variables (basic check)
+          environmentReady = !!(
+            process.env.LIVEKIT_URL && 
+            process.env.LIVEKIT_API_KEY && 
+            process.env.LIVEKIT_API_SECRET && 
+            process.env.OPENAI_API_KEY
+          );
+        } catch (error) {
+          console.error(`Worker health check failed for agent ${agentId}:`, error);
+          workerHealth = { healthy: false, message: 'Health check failed' };
+        }
+      }
+
+      // Determine overall availability
+      const platformHealthy = platformHealth[platformType] !== false;
+      const overallAvailable = platformHealthy && workerHealth.healthy && environmentReady;
+
+      // Determine reason for unavailability (simple, no sensitive details)
+      let reason: string | undefined;
+      if (!overallAvailable) {
+        if (!platformHealthy) {
+          reason = 'Service temporarily unavailable';
+        } else if (!workerHealth.healthy) {
+          reason = 'Agent busy or starting up';
+        } else if (!environmentReady) {
+          reason = 'Service configuration issue';
+        } else {
+          reason = 'Service temporarily unavailable';
+        }
+      }
+
+      // Return minimal response for security (architect recommendation)
+      const status = {
+        available: overallAvailable,
+        reason,
+        ts: Date.now()
+      };
+
+      // Log detailed diagnostics server-side only (not exposed to client)
+      console.log(`📊 Agent status check for ${agentId}:`, {
+        available: overallAvailable,
+        platform: platformType,
+        platformHealthy,
+        workerHealthy: workerHealth.healthy,
+        environmentReady,
+        agentName: agent.name
+      });
+
+      res.json(status);
+      
+    } catch (error) {
+      console.error(`❌ Agent status check error for ${req.params.agentId}:`, error);
+      res.json({
+        available: false,
+        reason: 'Status check failed',
+        ts: Date.now()
+      });
+    }
+  });
+
   // Create contact for widget chat
   app.post('/api/widget/agents/:agentId/contacts', async (req, res) => {
     try {

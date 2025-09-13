@@ -29,6 +29,12 @@
     contactId: null,
     contactInfo: null, // Store contact info for voice API
     agentConfig: null,
+    // Agent availability state
+    agentStatus: null,
+    lastStatusCheck: null,
+    statusCheckInterval: null,
+    // Widget connection state
+    connectionState: 'idle', // idle, checking_agent, agent_unavailable, connecting, connected, error
     // Voice call state
     voiceCall: null,
     isRecording: false,
@@ -38,7 +44,11 @@
     recordedChunks: [],
     websocket: null,
     roomId: null,
-    callId: null
+    callId: null,
+    // Error handling
+    lastError: null,
+    retryCount: 0,
+    maxRetries: 3
   };
   
   // API helper functions
@@ -90,23 +100,147 @@
     return contactInfo;
   }
   
+  // Agent status checking functions
+  async function checkAgentStatus() {
+    try {
+      console.log('🔍 Checking agent status for:', agentId);
+      state.connectionState = 'checking_agent';
+      updateVoiceUI();
+      
+      const statusData = await apiRequest(`/widget/agents/${agentId}/status`);
+      console.log('📊 Agent status response:', statusData);
+      
+      state.agentStatus = statusData;
+      state.lastStatusCheck = Date.now();
+      state.lastError = null;
+      
+      if (statusData.available) {
+        state.connectionState = 'idle';
+        console.log('✅ Agent is available and ready');
+      } else {
+        state.connectionState = 'agent_unavailable';
+        console.log('⚠️ Agent is currently unavailable:', statusData.reason || 'No reason provided');
+      }
+      
+      updateVoiceUI();
+      return statusData;
+      
+    } catch (error) {
+      console.error('❌ Failed to check agent status:', error);
+      state.connectionState = 'error';
+      state.lastError = {
+        type: 'status_check_failed',
+        message: 'Unable to check agent status',
+        details: error.message,
+        timestamp: Date.now()
+      };
+      updateVoiceUI();
+      throw error;
+    }
+  }
+  
+  // Start periodic agent status checking
+  function startAgentStatusMonitoring() {
+    // Check immediately
+    checkAgentStatus().catch(error => {
+      console.warn('Initial agent status check failed:', error);
+    });
+    
+    // Then check every 30 seconds
+    if (state.statusCheckInterval) {
+      clearInterval(state.statusCheckInterval);
+    }
+    
+    state.statusCheckInterval = setInterval(() => {
+      // Only check if we're not in an active call
+      if (!state.voiceCall && state.connectionState !== 'connecting' && state.connectionState !== 'connected') {
+        checkAgentStatus().catch(error => {
+          console.warn('Periodic agent status check failed:', error);
+        });
+      }
+    }, 30000); // Check every 30 seconds
+  }
+  
+  // Stop agent status monitoring
+  function stopAgentStatusMonitoring() {
+    if (state.statusCheckInterval) {
+      clearInterval(state.statusCheckInterval);
+      state.statusCheckInterval = null;
+    }
+  }
+  
+  // Check if agent is available (with optional fresh check)
+  async function isAgentAvailable(forceCheck = false) {
+    const now = Date.now();
+    const statusAge = state.lastStatusCheck ? now - state.lastStatusCheck : Infinity;
+    
+    // If status is older than 60 seconds or forced, get fresh status
+    if (forceCheck || statusAge > 60000 || !state.agentStatus) {
+      await checkAgentStatus();
+    }
+    
+    return state.agentStatus?.available === true;
+  }
+  
+  // Retry mechanism for failed operations
+  async function retryWithBackoff(operation, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Attempt ${attempt}/${maxRetries} for operation`);
+        const result = await operation();
+        state.retryCount = 0; // Reset on success
+        return result;
+      } catch (error) {
+        console.warn(`❌ Attempt ${attempt}/${maxRetries} failed:`, error.message);
+        
+        if (attempt === maxRetries) {
+          state.retryCount = maxRetries;
+          throw error;
+        }
+        
+        // Exponential backoff: 1s, 2s, 4s
+        const delay = Math.pow(2, attempt - 1) * 1000;
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
 
   // Voice call functions
   async function startVoiceCall() {
     try {
-      console.log('Starting voice call for agent:', agentId);
+      console.log('📞 Starting voice call for agent:', agentId);
       
-      // Start the voice call with contact info
-      const callData = await apiRequest(`/widget/agents/${agentId}/voice/start`, {
-        method: 'POST',
-        body: {
-          contactName: state.contactInfo?.name || 'Anonymous User',
-          contactEmail: state.contactInfo?.email || `anonymous-${Date.now()}@widget.voice`,
-          contactPhone: state.contactInfo?.phone || null
-        }
-      });
+      // First check if agent is available
+      state.connectionState = 'checking_agent';
+      updateVoiceUI();
       
-      console.log('Voice call started:', callData);
+      const isAvailable = await isAgentAvailable(true); // Force fresh check
+      
+      if (!isAvailable) {
+        const error = new Error('Agent is currently unavailable');
+        error.code = 'AGENT_UNAVAILABLE';
+        error.reason = state.agentStatus?.reason || 'Agent unavailable';
+        throw error;
+      }
+      
+      console.log('✅ Agent is available, starting voice call');
+      state.connectionState = 'connecting';
+      updateVoiceUI();
+      
+      // Start the voice call with contact info using retry mechanism
+      const callData = await retryWithBackoff(async () => {
+        return await apiRequest(`/widget/agents/${agentId}/voice/start`, {
+          method: 'POST',
+          body: {
+            contactName: state.contactInfo?.name || 'Anonymous User',
+            contactEmail: state.contactInfo?.email || `anonymous-${Date.now()}@widget.voice`,
+            contactPhone: state.contactInfo?.phone || null
+          }
+        });
+      }, state.maxRetries);
+      
+      console.log('📞 Voice call started:', callData);
       state.voiceCall = callData;
       state.roomId = callData.roomId;
       state.callId = callData.callId;
@@ -114,9 +248,33 @@
       // Connect to WebSocket for real-time communication
       await connectToVoiceWebSocket(callData.token);
       
+      state.connectionState = 'connected';
+      updateVoiceUI();
+      
       return callData;
     } catch (error) {
-      console.error('Failed to start voice call:', error);
+      console.error('❌ Failed to start voice call:', error);
+      
+      // Handle different error types
+      if (error.code === 'AGENT_UNAVAILABLE') {
+        state.connectionState = 'agent_unavailable';
+        state.lastError = {
+          type: 'agent_unavailable',
+          message: 'Agent is currently busy or unavailable',
+          details: error.reason || 'Agent unavailable',
+          timestamp: Date.now()
+        };
+      } else {
+        state.connectionState = 'error';
+        state.lastError = {
+          type: 'connection_failed',
+          message: 'Failed to start voice call',
+          details: error.message,
+          timestamp: Date.now()
+        };
+      }
+      
+      updateVoiceUI();
       throw error;
     }
   }
@@ -124,7 +282,7 @@
   async function endVoiceCall() {
     try {
       if (state.callId) {
-        console.log('Ending voice call:', state.callId);
+        console.log('🔚 Ending voice call:', state.callId);
         
         // Stop recording if active
         if (state.isRecording) {
@@ -152,11 +310,24 @@
         state.isRecording = false;
         state.isProcessing = false;
         state.isPlaying = false;
+        state.connectionState = 'idle';
+        state.lastError = null;
         
-        console.log('Voice call ended successfully');
+        // Resume agent status monitoring
+        startAgentStatusMonitoring();
+        
+        console.log('✅ Voice call ended successfully');
       }
     } catch (error) {
-      console.error('Failed to end voice call:', error);
+      console.error('❌ Failed to end voice call:', error);
+      state.connectionState = 'error';
+      state.lastError = {
+        type: 'disconnect_failed',
+        message: 'Failed to properly end voice call',
+        details: error.message,
+        timestamp: Date.now()
+      };
+      updateVoiceUI();
       throw error;
     }
   }
@@ -770,34 +941,108 @@
     
     if (!voiceStatus || !recordButton || !recordButtonSpan || !voiceButton) return;
     
-    // Update based on current voice state
-    if (state.isRecording) {
-      voiceStatus.textContent = 'Recording... Release to send';
-      voiceStatus.className = 'echoagent-voice-status recording';
-      recordButtonSpan.textContent = 'Recording...';
-      recordButton.className = 'echoagent-record-button recording';
-      voiceButton.className = 'echoagent-voice-button recording';
-    } else if (state.isProcessing) {
-      voiceStatus.textContent = 'Processing your message...';
-      voiceStatus.className = 'echoagent-voice-status processing';
-      recordButtonSpan.textContent = 'Processing...';
-      recordButton.className = 'echoagent-record-button processing';
-      voiceButton.className = 'echoagent-voice-button processing';
-      recordButton.disabled = true;
-    } else if (state.isPlaying) {
-      voiceStatus.textContent = 'Playing AI response...';
-      voiceStatus.className = 'echoagent-voice-status playing';
-      recordButtonSpan.textContent = 'Playing...';
-      recordButton.className = 'echoagent-record-button playing';
-      voiceButton.className = 'echoagent-voice-button playing';
-      recordButton.disabled = true;
-    } else {
-      voiceStatus.textContent = 'Ready to record';
-      voiceStatus.className = 'echoagent-voice-status ready';
-      recordButtonSpan.textContent = 'Hold to Record';
-      recordButton.className = 'echoagent-record-button ready';
-      voiceButton.className = 'echoagent-voice-button';
+    // Handle connection states first (highest priority)
+    switch (state.connectionState) {
+      case 'checking_agent':
+        voiceStatus.textContent = '🔍 Checking agent availability...';
+        voiceStatus.className = 'echoagent-voice-status checking';
+        recordButtonSpan.textContent = 'Checking...';
+        recordButton.className = 'echoagent-record-button checking';
+        voiceButton.className = 'echoagent-voice-button checking';
+        recordButton.disabled = true;
+        return;
+        
+      case 'agent_unavailable':
+        const agentName = state.agentConfig?.preferences?.displayName || 'Agent';
+        voiceStatus.textContent = `⚠️ ${agentName} is currently unavailable`;
+        voiceStatus.className = 'echoagent-voice-status unavailable';
+        recordButtonSpan.textContent = 'Agent Busy';
+        recordButton.className = 'echoagent-record-button unavailable';
+        voiceButton.className = 'echoagent-voice-button unavailable';
+        recordButton.disabled = true;
+        
+        // Add retry info if available
+        if (state.agentStatus?.details?.troubleshooting) {
+          const troubleshootingInfo = state.agentStatus.details.troubleshooting.join(', ');
+          voiceStatus.title = `Issues: ${troubleshootingInfo}`;
+        }
+        return;
+        
+      case 'connecting':
+        voiceStatus.textContent = '🔗 Connecting to agent...';
+        voiceStatus.className = 'echoagent-voice-status connecting';
+        recordButtonSpan.textContent = 'Connecting...';
+        recordButton.className = 'echoagent-record-button connecting';
+        voiceButton.className = 'echoagent-voice-button connecting';
+        recordButton.disabled = true;
+        return;
+        
+      case 'error':
+        const errorMsg = state.lastError?.message || 'Connection failed';
+        voiceStatus.textContent = `❌ ${errorMsg}`;
+        voiceStatus.className = 'echoagent-voice-status error';
+        recordButtonSpan.textContent = 'Error';
+        recordButton.className = 'echoagent-record-button error';
+        voiceButton.className = 'echoagent-voice-button error';
+        recordButton.disabled = true;
+        
+        // Add error details in tooltip
+        if (state.lastError?.details) {
+          voiceStatus.title = `Error details: ${state.lastError.details}`;
+        }
+        return;
+    }
+    
+    // Handle active call states (when connected)
+    if (state.connectionState === 'connected') {
+      if (state.isRecording) {
+        voiceStatus.textContent = '🎤 Recording... Release to send';
+        voiceStatus.className = 'echoagent-voice-status recording';
+        recordButtonSpan.textContent = 'Recording...';
+        recordButton.className = 'echoagent-record-button recording';
+        voiceButton.className = 'echoagent-voice-button recording';
+        recordButton.disabled = false;
+      } else if (state.isProcessing) {
+        voiceStatus.textContent = '⏳ Processing your message...';
+        voiceStatus.className = 'echoagent-voice-status processing';
+        recordButtonSpan.textContent = 'Processing...';
+        recordButton.className = 'echoagent-record-button processing';
+        voiceButton.className = 'echoagent-voice-button processing';
+        recordButton.disabled = true;
+      } else if (state.isPlaying) {
+        voiceStatus.textContent = '🔊 Playing AI response...';
+        voiceStatus.className = 'echoagent-voice-status playing';
+        recordButtonSpan.textContent = 'Playing...';
+        recordButton.className = 'echoagent-record-button playing';
+        voiceButton.className = 'echoagent-voice-button playing';
+        recordButton.disabled = true;
+      } else {
+        voiceStatus.textContent = '✅ Ready to record';
+        voiceStatus.className = 'echoagent-voice-status ready';
+        recordButtonSpan.textContent = 'Hold to Record';
+        recordButton.className = 'echoagent-record-button ready';
+        voiceButton.className = 'echoagent-voice-button connected';
+        recordButton.disabled = false;
+      }
+      return;
+    }
+    
+    // Default idle state (agent available, no active call)
+    if (state.agentStatus?.available) {
+      voiceStatus.textContent = '✅ Agent available - Ready to start';
+      voiceStatus.className = 'echoagent-voice-status available';
+      recordButtonSpan.textContent = 'Start Voice Call';
+      recordButton.className = 'echoagent-record-button available';
+      voiceButton.className = 'echoagent-voice-button available';
       recordButton.disabled = false;
+    } else {
+      // Unknown status or initial state
+      voiceStatus.textContent = '🔄 Checking agent status...';
+      voiceStatus.className = 'echoagent-voice-status checking';
+      recordButtonSpan.textContent = 'Please wait...';
+      recordButton.className = 'echoagent-record-button checking';
+      voiceButton.className = 'echoagent-voice-button checking';
+      recordButton.disabled = true;
     }
   }
   
@@ -902,10 +1147,34 @@
       }
     });
     
-    // Record button - press and hold to record
-    recordButton.addEventListener('mousedown', (e) => {
+    // Record button - enhanced with agent detection
+    recordButton.addEventListener('mousedown', async (e) => {
       e.preventDefault();
-      if (!state.isRecording && !state.isProcessing && !state.isPlaying && state.voiceCall) {
+      
+      // Handle different connection states
+      if (state.connectionState === 'idle' && state.agentStatus?.available) {
+        // If agent is available but no call started, start voice call first
+        if (!state.voiceCall && state.isContactInfoSubmitted) {
+          try {
+            await startVoiceCall();
+          } catch (error) {
+            console.error('Failed to start voice call from record button:', error);
+            return;
+          }
+        }
+      } else if (state.connectionState === 'agent_unavailable') {
+        // Try to check agent status again
+        await checkAgentStatus();
+        return;
+      } else if (state.connectionState === 'error') {
+        // Try to recover from error state
+        state.connectionState = 'idle';
+        await checkAgentStatus();
+        return;
+      }
+      
+      // Original recording logic (only if connected and ready)
+      if (!state.isRecording && !state.isProcessing && !state.isPlaying && state.voiceCall && state.connectionState === 'connected') {
         startRecording();
       }
     });
@@ -925,9 +1194,30 @@
     });
     
     // Touch support for mobile devices
-    recordButton.addEventListener('touchstart', (e) => {
+    recordButton.addEventListener('touchstart', async (e) => {
       e.preventDefault();
-      if (!state.isRecording && !state.isProcessing && !state.isPlaying && state.voiceCall) {
+      
+      // Handle different connection states (same logic as mousedown)
+      if (state.connectionState === 'idle' && state.agentStatus?.available) {
+        if (!state.voiceCall && state.isContactInfoSubmitted) {
+          try {
+            await startVoiceCall();
+          } catch (error) {
+            console.error('Failed to start voice call from touch:', error);
+            return;
+          }
+        }
+      } else if (state.connectionState === 'agent_unavailable') {
+        await checkAgentStatus();
+        return;
+      } else if (state.connectionState === 'error') {
+        state.connectionState = 'idle';
+        await checkAgentStatus();
+        return;
+      }
+      
+      // Original recording logic
+      if (!state.isRecording && !state.isProcessing && !state.isPlaying && state.voiceCall && state.connectionState === 'connected') {
         startRecording();
       }
     });
@@ -950,51 +1240,66 @@
   // Initialize widget
   async function initWidget() {
     try {
+      console.log('🚀 Initializing EchoAgent Voice Widget with comprehensive agent detection...');
+      
       // Load agent configuration
       const agentConfig = await loadAgentConfig();
       if (!agentConfig) {
-        console.error('Failed to load agent configuration');
+        console.error('❌ Failed to load agent configuration');
         return;
       }
       
-      // Check if contact info is required
-      const requireContactInfo = agentConfig.preferences?.isContactRequired !== false;
+      console.log('✅ Agent configuration loaded:', agentConfig.name);
       
       // Create widget DOM
       const elements = createWidgetDOM(agentConfig);
       
-      // If contact info is not required, skip contact form
+      // Start agent status monitoring immediately
+      console.log('🔍 Starting agent status monitoring...');
+      startAgentStatusMonitoring();
+      
+      // Check if contact info is required
+      const requireContactInfo = agentConfig.preferences?.isContactRequired !== false;
+      
+      // For anonymous mode, still require explicit user action to start calls
       if (!requireContactInfo) {
-        try {
-          // Store anonymous contact info
-          storeContactInfo({
-            name: 'Anonymous User',
-            email: `anonymous-${Date.now()}@widget.voice`,
-            phone: null
-          });
-          
-          // Start voice call
-          await startVoiceCall();
-          
-          // Hide contact form and show voice controls
-          elements.contactForm.style.display = 'none';
-          elements.voiceControls.style.display = 'block';
-          
-          state.isContactInfoSubmitted = true;
-          
-        } catch (error) {
-          console.error('Failed to create anonymous voice session:', error);
-          // Fall back to showing contact form
-        }
+        // Store anonymous contact info but don't auto-start calls
+        storeContactInfo({
+          name: 'Anonymous User',
+          email: `anonymous-${Date.now()}@widget.voice`,
+          phone: null
+        });
+        
+        // Hide contact form and show voice controls in waiting mode
+        elements.contactForm.style.display = 'none';
+        elements.voiceControls.style.display = 'block';
+        state.isContactInfoSubmitted = true;
+        
+        console.log('ℹ️ Anonymous mode - waiting for user to start call');
       }
       
       // Setup event listeners
       setupEventListeners(elements);
       
-      console.log('EchoAgent Voice-Only Widget initialized successfully');
+      // Add cleanup on page unload
+      window.addEventListener('beforeunload', () => {
+        stopAgentStatusMonitoring();
+        if (state.voiceCall) {
+          endVoiceCall();
+        }
+      });
+      
+      console.log('✅ EchoAgent Voice Widget initialized successfully with agent detection');
       
     } catch (error) {
-      console.error('Failed to initialize voice widget:', error);
+      console.error('❌ Failed to initialize voice widget:', error);
+      state.connectionState = 'error';
+      state.lastError = {
+        type: 'initialization_failed',
+        message: 'Failed to initialize widget',
+        details: error.message,
+        timestamp: Date.now()
+      };
     }
   }
   
