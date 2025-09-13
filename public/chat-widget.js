@@ -288,8 +288,8 @@
         break;
         
       case 'error':
-        console.error('Voice WebSocket error:', message.error);
-        showError('Voice call error: ' + message.error);
+        console.error('Voice WebSocket error:', message.message);
+        showError('Voice call error: ' + message.message);
         break;
         
       default:
