@@ -30,7 +30,18 @@
     conversationId: null,
     messages: [],
     agentConfig: null,
-    isLoading: false
+    isLoading: false,
+    // Voice call state
+    isVoiceMode: false,
+    voiceCall: null,
+    isRecording: false,
+    isProcessing: false,
+    isPlaying: false,
+    mediaRecorder: null,
+    recordedChunks: [],
+    websocket: null,
+    roomId: null,
+    callId: null
   };
   
   // API helper functions
@@ -105,6 +116,326 @@
     } catch (error) {
       console.error('Failed to start conversation:', error);
       throw error;
+    }
+  }
+
+  // Voice call functions
+  async function startVoiceCall() {
+    try {
+      console.log('Starting voice call for agent:', agentId);
+      
+      // Start the voice call
+      const callData = await apiRequest(`/widget/agents/${agentId}/voice/start`, {
+        method: 'POST',
+        body: {
+          contactId: state.contactId,
+          conversationId: state.conversationId
+        }
+      });
+      
+      console.log('Voice call started');
+      state.voiceCall = callData;
+      state.roomId = callData.roomId;
+      state.callId = callData.callId;
+      
+      // Connect to WebSocket for real-time communication
+      await connectToVoiceWebSocket(callData.token);
+      
+      return callData;
+    } catch (error) {
+      console.error('Failed to start voice call:', error);
+      throw error;
+    }
+  }
+
+  async function endVoiceCall() {
+    try {
+      if (state.callId) {
+        console.log('Ending voice call:', state.callId);
+        
+        // Stop recording if active
+        if (state.isRecording) {
+          stopRecording();
+        }
+        
+        // Close WebSocket connection
+        if (state.websocket) {
+          state.websocket.close();
+          state.websocket = null;
+        }
+        
+        // End the call on the backend
+        await apiRequest(`/widget/agents/${agentId}/voice/end`, {
+          method: 'POST',
+          body: {
+            callId: state.callId
+          }
+        });
+        
+        // Reset voice state
+        state.voiceCall = null;
+        state.callId = null;
+        state.roomId = null;
+        state.isVoiceMode = false;
+        state.isRecording = false;
+        state.isProcessing = false;
+        state.isPlaying = false;
+        
+        console.log('Voice call ended successfully');
+      }
+    } catch (error) {
+      console.error('Failed to end voice call:', error);
+      throw error;
+    }
+  }
+
+  // WebSocket connection for real-time voice communication
+  async function connectToVoiceWebSocket(token) {
+    try {
+      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      // Create WebSocket connection with JWT token in protocol header
+      state.websocket = new WebSocket(wsUrl, [`Bearer.${token}`]);
+      
+      state.websocket.onopen = () => {
+        console.log('WebSocket connected for voice call');
+      };
+      
+      state.websocket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          handleVoiceWebSocketMessage(message);
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+      
+      state.websocket.onclose = (event) => {
+        console.log('WebSocket connection closed:', event.code, event.reason);
+        state.websocket = null;
+      };
+      
+      state.websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+      
+    } catch (error) {
+      console.error('Failed to connect to voice WebSocket:', error);
+      throw error;
+    }
+  }
+
+  function handleVoiceWebSocketMessage(message) {
+    console.log('Received WebSocket message:', message);
+    
+    switch (message.type) {
+      case 'audio_response':
+        // Play AI audio response
+        if (message.audioData) {
+          playAudioResponse(message.audioData);
+        }
+        break;
+        
+      case 'transcription':
+        // Display user speech transcription
+        if (message.text) {
+          const container = document.querySelector('.echoagent-widget-container');
+          const messagesContainer = container?.querySelector('.echoagent-chat-messages');
+          if (messagesContainer) {
+            addMessageToUI(message.text, 'user', messagesContainer);
+          }
+        }
+        break;
+        
+      case 'ai_response':
+        // Display AI text response
+        if (message.text) {
+          const container = document.querySelector('.echoagent-widget-container');
+          const messagesContainer = container?.querySelector('.echoagent-chat-messages');
+          if (messagesContainer) {
+            addMessageToUI(message.text, 'bot', messagesContainer);
+          }
+        }
+        break;
+        
+      case 'call_status':
+        console.log('Call status update:', message.status);
+        if (message.status === 'ended') {
+          // Call ended by server, switch back to text mode
+          const container = document.querySelector('.echoagent-widget-container');
+          if (container) {
+            const inputControls = container.querySelector('.echoagent-input-controls');
+            const voiceControls = container.querySelector('.echoagent-voice-controls');
+            const chatInput = container.querySelector('.echoagent-chat-input');
+            
+            if (inputControls && voiceControls && chatInput) {
+              inputControls.style.display = 'flex';
+              voiceControls.style.display = 'none';
+              state.isVoiceMode = false;
+              chatInput.focus();
+            }
+          }
+          
+          // Reset voice call state
+          state.voiceCall = null;
+          state.callId = null;
+          state.roomId = null;
+          state.isRecording = false;
+          state.isProcessing = false;
+          state.isPlaying = false;
+        }
+        break;
+        
+      case 'error':
+        console.error('Voice WebSocket error:', message.error);
+        showError('Voice call error: ' + message.error);
+        break;
+        
+      default:
+        console.warn('Unknown WebSocket message type:', message.type);
+    }
+  }
+
+  // Audio recording functions
+  async function startRecording() {
+    try {
+      console.log('Requesting microphone access...');
+      
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          sampleRate: 16000,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true
+        } 
+      });
+      
+      console.log('Microphone access granted');
+      
+      // Create MediaRecorder
+      state.mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm'
+      });
+      
+      state.recordedChunks = [];
+      state.isRecording = true;
+      
+      // Handle data available
+      state.mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          state.recordedChunks.push(event.data);
+        }
+      };
+      
+      // Handle stop
+      state.mediaRecorder.onstop = () => {
+        console.log('Recording stopped');
+        
+        // Create audio blob
+        const audioBlob = new Blob(state.recordedChunks, { type: 'audio/webm' });
+        
+        // Send audio data via WebSocket
+        if (state.websocket && state.websocket.readyState === WebSocket.OPEN) {
+          sendAudioToWebSocket(audioBlob);
+        }
+        
+        // Stop microphone stream
+        stream.getTracks().forEach(track => track.stop());
+        
+        state.isRecording = false;
+        state.isProcessing = true;
+        updateVoiceUI();
+      };
+      
+      // Start recording
+      state.mediaRecorder.start();
+      console.log('Recording started');
+      
+      updateVoiceUI();
+      
+    } catch (error) {
+      console.error('Failed to start recording:', error);
+      showError('Could not access microphone. Please check your permissions.');
+      state.isRecording = false;
+      updateVoiceUI();
+    }
+  }
+
+  function stopRecording() {
+    if (state.mediaRecorder && state.isRecording) {
+      console.log('Stopping recording...');
+      state.mediaRecorder.stop();
+    }
+  }
+
+  async function sendAudioToWebSocket(audioBlob) {
+    try {
+      console.log('Sending audio data to WebSocket, size:', audioBlob.size);
+      
+      // Convert blob to base64
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64Audio = reader.result.split(',')[1]; // Remove data:audio/webm;base64, prefix
+        
+        const message = {
+          type: 'audio_message',
+          audioData: base64Audio,
+          roomId: state.roomId,
+          callId: state.callId
+        };
+        
+        state.websocket.send(JSON.stringify(message));
+        console.log('Audio message sent via WebSocket');
+      };
+      
+      reader.readAsDataURL(audioBlob);
+      
+    } catch (error) {
+      console.error('Failed to send audio to WebSocket:', error);
+      state.isProcessing = false;
+      updateVoiceUI();
+    }
+  }
+
+  // Audio playback function
+  function playAudioResponse(base64AudioData) {
+    try {
+      console.log('Playing AI audio response');
+      state.isPlaying = true;
+      updateVoiceUI();
+      
+      // Create audio element
+      const audio = new Audio();
+      audio.src = `data:audio/mpeg;base64,${base64AudioData}`;
+      
+      audio.onended = () => {
+        console.log('Audio playback finished');
+        state.isPlaying = false;
+        state.isProcessing = false;
+        updateVoiceUI();
+      };
+      
+      audio.onerror = (error) => {
+        console.error('Audio playback error:', error);
+        state.isPlaying = false;
+        state.isProcessing = false;
+        updateVoiceUI();
+      };
+      
+      audio.play().catch(error => {
+        console.error('Failed to play audio:', error);
+        state.isPlaying = false;
+        state.isProcessing = false;
+        updateVoiceUI();
+      });
+      
+    } catch (error) {
+      console.error('Failed to play audio response:', error);
+      state.isPlaying = false;
+      state.isProcessing = false;
+      updateVoiceUI();
     }
   }
   
@@ -414,6 +745,136 @@
         font-size: 14px;
         margin: 8px 16px;
       }
+      
+      /* Voice Control Styles */
+      .echoagent-input-controls {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+      }
+      
+      .echoagent-voice-controls {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        padding: 8px 0;
+      }
+      
+      .echoagent-voice-status {
+        font-size: 14px;
+        color: #6b7280;
+        font-weight: 500;
+        text-align: center;
+      }
+      
+      .echoagent-voice-status.recording {
+        color: #dc2626;
+        animation: echoagent-pulse 1s infinite;
+      }
+      
+      .echoagent-voice-status.processing {
+        color: #2563eb;
+      }
+      
+      .echoagent-voice-status.playing {
+        color: #059669;
+      }
+      
+      .echoagent-voice-status.ready {
+        color: #6b7280;
+      }
+      
+      @keyframes echoagent-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+      
+      .echoagent-record-button {
+        background-color: ${primaryColor};
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 12px;
+        gap: 4px;
+        user-select: none;
+      }
+      
+      .echoagent-record-button:hover {
+        background-color: ${secondaryColor};
+        transform: scale(1.05);
+      }
+      
+      .echoagent-record-button.recording {
+        background-color: #dc2626;
+        animation: echoagent-pulse 1s infinite;
+      }
+      
+      .echoagent-record-button.processing {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+      }
+      
+      .echoagent-record-button.playing {
+        background-color: #059669;
+        cursor: not-allowed;
+      }
+      
+      .echoagent-record-button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+      }
+      
+      .echoagent-record-button svg {
+        width: 20px;
+        height: 20px;
+      }
+      
+      .echoagent-record-button span {
+        font-size: 10px;
+        font-weight: 500;
+        margin-top: 2px;
+      }
+      
+      .echoagent-voice-toggle,
+      .echoagent-text-toggle {
+        background-color: #f3f4f6;
+        color: #6b7280;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+      }
+      
+      .echoagent-voice-toggle:hover,
+      .echoagent-text-toggle:hover {
+        background-color: #e5e7eb;
+        color: #374151;
+      }
+      
+      .echoagent-voice-toggle svg,
+      .echoagent-text-toggle svg {
+        width: 16px;
+        height: 16px;
+      }
     `;
     document.head.appendChild(styleTag);
     
@@ -470,13 +931,46 @@
     chatInputContainer.className = 'echoagent-chat-input-container';
     chatInputContainer.style.display = 'none';
     chatInputContainer.innerHTML = `
-      <textarea class="echoagent-chat-input" placeholder="Type your message..."></textarea>
-      <button class="echoagent-send-button">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"></line>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-      </button>
+      <div class="echoagent-input-controls">
+        <button class="echoagent-voice-toggle" title="Switch to voice mode">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+        <textarea class="echoagent-chat-input" placeholder="Type your message..."></textarea>
+        <button class="echoagent-send-button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+      <div class="echoagent-voice-controls" style="display: none;">
+        <div class="echoagent-voice-status">Ready to record</div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <button class="echoagent-record-button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+            <span>Hold to Record</span>
+          </button>
+          <button class="echoagent-text-toggle" title="Switch to text mode">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14,2 14,8 20,8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10,9 9,9 8,9"></polyline>
+            </svg>
+          </button>
+        </div>
+      </div>
     `;
     
     // Append elements to chat window
@@ -502,17 +996,108 @@
       chatInput: chatInputContainer.querySelector('.echoagent-chat-input'),
       sendButton: chatInputContainer.querySelector('.echoagent-send-button'),
       closeButton: chatHeader.querySelector('.echoagent-close-button'),
-      submitButton: contactForm.querySelector('.echoagent-submit-button')
+      submitButton: contactForm.querySelector('.echoagent-submit-button'),
+      // Voice control elements
+      voiceToggle: chatInputContainer.querySelector('.echoagent-voice-toggle'),
+      textToggle: chatInputContainer.querySelector('.echoagent-text-toggle'),
+      recordButton: chatInputContainer.querySelector('.echoagent-record-button'),
+      voiceStatus: chatInputContainer.querySelector('.echoagent-voice-status'),
+      inputControls: chatInputContainer.querySelector('.echoagent-input-controls'),
+      voiceControls: chatInputContainer.querySelector('.echoagent-voice-controls')
     };
   }
   
+  // Voice UI update function
+  function updateVoiceUI() {
+    const container = document.querySelector('.echoagent-widget-container');
+    if (!container) return;
+    
+    const voiceStatus = container.querySelector('.echoagent-voice-status');
+    const recordButton = container.querySelector('.echoagent-record-button');
+    const recordButtonSpan = recordButton?.querySelector('span');
+    
+    if (!voiceStatus || !recordButton || !recordButtonSpan) return;
+    
+    // Update based on current voice state
+    if (state.isRecording) {
+      voiceStatus.textContent = 'Recording... Release to send';
+      voiceStatus.className = 'echoagent-voice-status recording';
+      recordButtonSpan.textContent = 'Recording...';
+      recordButton.className = 'echoagent-record-button recording';
+    } else if (state.isProcessing) {
+      voiceStatus.textContent = 'Processing your message...';
+      voiceStatus.className = 'echoagent-voice-status processing';
+      recordButtonSpan.textContent = 'Processing...';
+      recordButton.className = 'echoagent-record-button processing';
+      recordButton.disabled = true;
+    } else if (state.isPlaying) {
+      voiceStatus.textContent = 'Playing AI response...';
+      voiceStatus.className = 'echoagent-voice-status playing';
+      recordButtonSpan.textContent = 'Playing...';
+      recordButton.className = 'echoagent-record-button playing';
+      recordButton.disabled = true;
+    } else {
+      voiceStatus.textContent = 'Ready to record';
+      voiceStatus.className = 'echoagent-voice-status ready';
+      recordButtonSpan.textContent = 'Hold to Record';
+      recordButton.className = 'echoagent-record-button ready';
+      recordButton.disabled = false;
+    }
+  }
+
+  // Toggle between text and voice modes
+  async function toggleVoiceMode(elements) {
+    try {
+      if (!state.isVoiceMode) {
+        // Switch to voice mode
+        console.log('Switching to voice mode');
+        
+        // Start voice call if not already started
+        if (!state.voiceCall && state.contactId && state.conversationId) {
+          await startVoiceCall();
+        }
+        
+        // Show voice controls, hide text input
+        elements.inputControls.style.display = 'none';
+        elements.voiceControls.style.display = 'flex';
+        state.isVoiceMode = true;
+        
+        updateVoiceUI();
+        
+      } else {
+        // Switch to text mode
+        console.log('Switching to text mode');
+        
+        // End voice call if active
+        if (state.voiceCall) {
+          await endVoiceCall();
+        }
+        
+        // Show text input, hide voice controls
+        elements.inputControls.style.display = 'flex';
+        elements.voiceControls.style.display = 'none';
+        state.isVoiceMode = false;
+        
+        // Focus on text input
+        elements.chatInput.focus();
+      }
+    } catch (error) {
+      console.error('Failed to toggle voice mode:', error);
+      showError('Failed to switch voice mode. Please try again.');
+    }
+  }
+
   // Add message to UI
   function addMessageToUI(content, role, messagesContainer) {
+    // Use the provided messagesContainer or find it
+    const messageContainer = messagesContainer || document.querySelector('.echoagent-chat-messages');
+    if (!messageContainer) return;
+    
     const messageEl = document.createElement('div');
     messageEl.className = `echoagent-message ${role}`;
     messageEl.textContent = content;
-    messagesContainer.appendChild(messageEl);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    messageContainer.appendChild(messageEl);
+    messageContainer.scrollTop = messageContainer.scrollHeight;
   }
   
   // Show typing indicator
@@ -603,7 +1188,10 @@
       contactForm,
       submitButton,
       messagesContainer,
-      chatInputContainer
+      chatInputContainer,
+      voiceToggle,
+      textToggle,
+      recordButton
     } = elements;
     
     // Toggle chat window
@@ -690,6 +1278,60 @@
     chatInput.addEventListener('input', () => {
       chatInput.style.height = 'auto';
       chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+    });
+    
+    // Voice mode toggle (text to voice)
+    voiceToggle.addEventListener('click', () => {
+      toggleVoiceMode(elements);
+    });
+    
+    // Text mode toggle (voice to text)
+    textToggle.addEventListener('click', () => {
+      toggleVoiceMode(elements);
+    });
+    
+    // Record button - press and hold to record
+    recordButton.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      if (!state.isRecording && !state.isProcessing && !state.isPlaying) {
+        startRecording();
+      }
+    });
+    
+    recordButton.addEventListener('mouseup', (e) => {
+      e.preventDefault();
+      if (state.isRecording) {
+        stopRecording();
+      }
+    });
+    
+    recordButton.addEventListener('mouseleave', (e) => {
+      e.preventDefault();
+      if (state.isRecording) {
+        stopRecording();
+      }
+    });
+    
+    // Touch support for mobile devices
+    recordButton.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (!state.isRecording && !state.isProcessing && !state.isPlaying) {
+        startRecording();
+      }
+    });
+    
+    recordButton.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      if (state.isRecording) {
+        stopRecording();
+      }
+    });
+    
+    recordButton.addEventListener('touchcancel', (e) => {
+      e.preventDefault();
+      if (state.isRecording) {
+        stopRecording();
+      }
     });
   }
   
