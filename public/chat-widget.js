@@ -197,7 +197,7 @@
       console.log('Connecting to WebSocket:', wsUrl);
       
       // Create WebSocket connection with JWT token in protocol header
-      state.websocket = new WebSocket(wsUrl, [`Bearer.${token}`]);
+      state.websocket = new WebSocket(wsUrl, [`auth.${token}`]);
       
       state.websocket.onopen = () => {
         console.log('WebSocket connected for voice call');
