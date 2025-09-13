@@ -1,0 +1,15 @@
+Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:133 Voice call started: {success: true, callId: 'c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be', roomId: '3f348954-15cf-42f1-8090-81a952d5b039', token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoid…1NDZ9.JuFZxu2h88IIovUWQetLzWyNRjSP948ZkCKuhgQKNqQ', jwtToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0eXBlIjoid…1NDZ9.JuFZxu2h88IIovUWQetLzWyNRjSP948ZkCKuhgQKNqQ', …}
+voice-only-widget.js:193 Connecting to WebSocket: wss://745d7d39-53e1-43dc-8cf9-d73f48b9b330-00-27t3ik7n9r2t0.worf.replit.dev/ws/3f348954-15cf-42f1-8090-81a952d5b039/human/c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be
+voice-only-widget.js:199 WebSocket connected for voice call
+voice-only-widget.js:227 Received WebSocket message: {type: 'connected', clientId: '3097b93c-09bf-4e78-b195-501d59939a55', roomId: '3f348954-15cf-42f1-8090-81a952d5b039', clientType: 'human', callId: 'c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be'}
+voice-only-widget.js:231 WebSocket connection confirmed: {type: 'connected', clientId: '3097b93c-09bf-4e78-b195-501d59939a55', roomId: '3f348954-15cf-42f1-8090-81a952d5b039', clientType: 'human', callId: 'c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be'}
+voice-only-widget.js:227 Received WebSocket message: {type: 'connected', clientId: '3097b93c-09bf-4e78-b195-501d59939a55', roomId: '3f348954-15cf-42f1-8090-81a952d5b039', clientType: 'human', callId: 'c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be'}
+voice-only-widget.js:231 WebSocket connection confirmed: {type: 'connected', clientId: '3097b93c-09bf-4e78-b195-501d59939a55', roomId: '3f348954-15cf-42f1-8090-81a952d5b039', clientType: 'human', callId: 'c9f2ea22-ff38-40f8-a5a5-ace3ccebb1be'}
+voice-only-widget.js:262 Requesting microphone access...
+voice-only-widget.js:274 Microphone access granted
+voice-only-widget.js:313 Recording started
+voice-only-widget.js:327 Stopping recording...
+voice-only-widget.js:293 Recording stopped
+voice-only-widget.js:334 Sending audio data to WebSocket, size: 65984
+voice-only-widget.js:349 Audio message sent via WebSocket

@@ -56,6 +56,16 @@ class InProcessVoiceAgent {
       this.ws.on('open', () => {
         console.log(`✅ AI agent connected to room: ${this.roomId}`);
         this.running = true;
+        
+        // Send a ping to keep connection alive
+        try {
+          if (this.ws && this.ws.readyState === this.ws.OPEN) {
+            this.ws.ping();
+            console.log(`🏓 AI agent sent ping for room: ${this.roomId}`);
+          }
+        } catch (error) {
+          console.error(`❌ AI agent ping failed for room: ${this.roomId}`, error);
+        }
       });
 
       this.ws.on('message', async (message) => {
@@ -70,6 +80,15 @@ class InProcessVoiceAgent {
       this.ws.on('close', (code, reason) => {
         console.log(`🔌 AI agent disconnected from room: ${this.roomId} [code: ${code}, reason: ${reason || 'no reason'}]`);
         this.running = false;
+      });
+      
+      this.ws.on('error', (error) => {
+        console.error(`❌ AI agent WebSocket error for room: ${this.roomId}`, error);
+        this.running = false;
+      });
+      
+      this.ws.on('pong', () => {
+        console.log(`🏓 AI agent received pong for room: ${this.roomId}`);
       });
 
       this.ws.on('error', (error) => {
@@ -701,7 +720,8 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
     // Parse path to get room ID and client type
     // Expected: /ws/roomId or /ws/roomId/clientType or /ws/roomId/clientType/callId
     // SECURITY: Both agent and widget connections now require JWT authentication
-    const pathParts = req.url?.split('/').filter(part => part) || [];
+    const urlObj = new URL(req.url!, 'http://localhost');
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
     
     // Check if this is a WebSocket connection for voice calls
     if (pathParts.length < 2 || pathParts[0] !== 'ws') {
@@ -716,6 +736,15 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
     const roomId = pathParts[1];
     const clientType = pathParts[2] === 'agent' ? 'agent' : 'human';
     const callId = pathParts[3];
+    
+    console.log(`🔍 WebSocket URL parsing debug:`, {
+      url: req.url,
+      pathname: urlObj.pathname,
+      pathParts,
+      roomId,
+      clientType,
+      callId
+    });
 
     // Browser-compatible JWT extraction
     // 1. Try Sec-WebSocket-Protocol header (standard for browser WS auth)
@@ -797,7 +826,8 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
           hasWidgetVoiceAuth: !!widgetVoiceAuth,
           agentId: widgetVoiceAuth?.agentId,
           tenantId: widgetVoiceAuth?.tenantId || authData?.tenantId,
-          roomId: widgetVoiceAuth?.roomId
+          roomId: widgetVoiceAuth?.roomId,
+          isAutoSpawned: widgetVoiceAuth && widgetVoiceAuth.agentId === 'auto-spawned-agent'
         });
         
         // For agents, check if this is an auto-spawned agent by checking JWT claims
