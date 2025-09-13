@@ -137,9 +137,10 @@ export class VoiceChatServer {
 
     switch (data.type) {
       case 'audio':
+      case 'audio_message':
         // Audio from human -> forward to agents
         if (type === 'human') {
-          const audioData = data.audio || data.data;
+          const audioData = data.audio || data.audioData || data.data;
           if (!audioData) {
             console.error('No audio data found in message:', data);
             return;
@@ -193,6 +194,12 @@ export class VoiceChatServer {
       case 'agent_response':
         // Text response from agent -> send to humans
         if (type === 'agent') {
+          // Send both message types for compatibility
+          this.sendToHumansInRoom(roomId, {
+            type: 'ai_response',
+            text: data.text,
+            timestamp: new Date().toISOString()
+          });
           this.sendToHumansInRoom(roomId, {
             type: 'agent_response',
             text: data.text,
@@ -207,6 +214,7 @@ export class VoiceChatServer {
           this.sendToHumansInRoom(roomId, {
             type: 'audio_response',
             audio: data.audio,
+            audioData: data.audio || data.audioData,
             timestamp: new Date().toISOString()
           });
         }
@@ -239,7 +247,8 @@ export class VoiceChatServer {
               
               // Notify all clients in room that call ended
               this.broadcastToRoom(roomId, {
-                type: 'call_ended',
+                type: 'call_status',
+                status: 'ended',
                 callId: callId,
                 duration: duration,
                 timestamp: endedAt.toISOString()

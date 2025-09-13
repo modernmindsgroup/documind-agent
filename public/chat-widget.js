@@ -231,6 +231,11 @@
     console.log('Received WebSocket message:', message);
     
     switch (message.type) {
+      case 'connected':
+        console.log('WebSocket connection confirmed:', message);
+        // Connection successful, ready to process audio
+        break;
+        
       case 'audio_response':
         // Play AI audio response
         if (message.audioData) {
