@@ -302,9 +302,19 @@ export class VoiceChatServer {
   private clients = new Map<WebSocket, Client>();
   private spawnedAgents = new Map<string, InProcessVoiceAgent>(); // Track spawned agents by roomId
   private baseUrl: string;
+  private hostDetected = false;
 
   constructor(baseUrl: string = 'ws://localhost:5000') {
     this.baseUrl = baseUrl;
+  }
+
+  public setBaseUrlFromRequest(request: any): void {
+    if (!this.hostDetected && request.headers.host) {
+      const protocol = request.headers['x-forwarded-proto'] || (request.connection.encrypted ? 'wss' : 'ws');
+      this.baseUrl = `${protocol}://${request.headers.host}`;
+      this.hostDetected = true;
+      console.log(`🌐 Detected WebSocket base URL: ${this.baseUrl}`);
+    }
   }
 
   registerClient(ws: WebSocket, roomId: string, clientType: 'human' | 'agent' = 'human', callId?: string, tenantId?: string): Client {
@@ -635,12 +645,8 @@ export class VoiceChatServer {
 }
 
 export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceChatServer {
-  // Make baseURL configurable for different deployment environments
-  const websocketBaseUrl = baseUrl || 
-    process.env.WEBSOCKET_BASE_URL || 
-    `ws://${process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : 'localhost:5000'}`;
-  
-  const voiceServer = new VoiceChatServer(websocketBaseUrl);
+  // Use a placeholder for now - we'll get the real host from the request
+  const voiceServer = new VoiceChatServer('');
   const wss = new WebSocketServer({ 
     noServer: true,
     maxPayload: 1024 * 1024 // 1MB limit for audio frames
@@ -653,6 +659,8 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
     // Only handle WebSocket upgrades for voice calls (/ws/*)
     if (url === '/ws' || url.startsWith('/ws/')) {
       wss.handleUpgrade(request, socket, head, (ws) => {
+        // Set the correct base URL from the request
+        voiceServer.setBaseUrlFromRequest(request);
         wss.emit('connection', ws, request);
       });
     }
