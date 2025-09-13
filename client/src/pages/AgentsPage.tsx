@@ -254,7 +254,6 @@ export default function AgentsPage() {
       displayName: agentPreferences?.displayName || selectedAgent?.name || "",
       logo: agentPreferences?.logo || "",
       widgetTheme: agentPreferences?.widgetTheme || "light",
-      realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || getDefaultPlatform(),
     },
   });
 
@@ -278,18 +277,10 @@ export default function AgentsPage() {
         displayName: agentPreferences?.displayName || selectedAgent.name || "",
         logo: agentPreferences?.logo || "",
         widgetTheme: agentPreferences?.widgetTheme || "light",
-        realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || getDefaultPlatform(),
       });
     }
   }, [selectedAgent, agentPreferences, llmForm, voiceForm, preferencesForm]);
 
-  // Update platform default when platform data changes and no existing preference exists
-  useEffect(() => {
-    if (callPlatforms.length > 0 && selectedAgent && !agentPreferences?.realtimeVoicePlatform) {
-      const defaultPlatform = getDefaultPlatform();
-      preferencesForm.setValue('realtimeVoicePlatform', defaultPlatform);
-    }
-  }, [callPlatforms, selectedAgent, agentPreferences, preferencesForm]);
 
   const handleToggleStatus = () => {
     if (!selectedAgent) return;
