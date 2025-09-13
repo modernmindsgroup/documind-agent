@@ -7,13 +7,13 @@ import {
   Webhook,
   KeyRound,
   Phone,
-  PhoneCall,
   MessageSquare,
   Activity,
   LayoutDashboard,
   ChevronDown,
   Zap,
   CreditCard,
+  Users,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -49,9 +49,9 @@ const menuItems: SidebarItem[] = [
     isActive: true,
   },
   {
-    title: "Calls",
-    url: "/calls",
-    icon: PhoneCall,
+    title: "Contacts",
+    url: "/contacts",
+    icon: Users,
   },
   {
     title: "Billing",

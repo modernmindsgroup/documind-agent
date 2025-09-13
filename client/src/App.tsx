@@ -10,8 +10,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AppSidebar } from "./components/AppSidebar";
 import { Dashboard, ViewMode } from "./pages/Dashboard";
-import CallsPage from "./pages/CallsPage";
 import BillingPage from "./pages/BillingPage";
+import ContactsPage from "./pages/ContactsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
@@ -66,10 +66,10 @@ function Router() {
           </MainApp>
         </ProtectedRoute>
       </Route>
-      <Route path="/calls">
+      <Route path="/contacts">
         <ProtectedRoute>
           <MainApp>
-            <CallsPage />
+            <ContactsPage />
           </MainApp>
         </ProtectedRoute>
       </Route>

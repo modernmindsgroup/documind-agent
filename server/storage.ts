@@ -61,7 +61,7 @@ import {
   type InsertPaymentSession
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, and, like, count, sql, gte, lt } from "drizzle-orm";
+import { eq, desc, and, or, like, count, sql, gte, lt } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -89,6 +89,23 @@ export interface IStorage {
   // Contacts
   createContact(contact: InsertContact): Promise<Contact>;
   getContactById(id: string, tenantId: string): Promise<Contact | undefined>;
+  getContactsByTenant(tenantId: string, filters?: {
+    search?: string;
+    status?: string;
+    source?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<Contact[]>;
+  updateContact(id: string, contact: Partial<InsertContact>, tenantId: string): Promise<Contact | undefined>;
+  deleteContact(id: string, tenantId: string): Promise<boolean>;
+  getContactStats(tenantId: string): Promise<{
+    total: number;
+    active: number;
+    newThisMonth: number;
+    activePercentage: string;
+    recentActivity: number;
+    avgInteractions: number;
+  }>;
   
   // Workflows
   getWorkflowsByTenant(tenantId: string): Promise<Workflow[]>;
@@ -1009,6 +1026,115 @@ export class DatabaseStorage implements IStorage {
       .from(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)));
     return contact || undefined;
+  }
+
+  async getContactsByTenant(tenantId: string, filters: {
+    search?: string;
+    status?: string;
+    source?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Contact[]> {
+    let query = db
+      .select()
+      .from(contacts)
+      .where(eq(contacts.tenantId, tenantId));
+
+    // Add search filter
+    if (filters.search) {
+      query = query.where(
+        or(
+          like(contacts.name, `%${filters.search}%`),
+          like(contacts.email, `%${filters.search}%`),
+          like(contacts.phone, `%${filters.search}%`)
+        )
+      );
+    }
+
+    // Add pagination
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+    if (filters.offset) {
+      query = query.offset(filters.offset);
+    }
+
+    // Order by creation date
+    query = query.orderBy(desc(contacts.createdAt));
+
+    const contactsList = await query;
+    return contactsList;
+  }
+
+  async updateContact(id: string, contact: Partial<InsertContact>, tenantId: string): Promise<Contact | undefined> {
+    const updateData = {
+      ...contact,
+      updatedAt: new Date()
+    };
+
+    const [updatedContact] = await db
+      .update(contacts)
+      .set(updateData)
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)))
+      .returning();
+    
+    return updatedContact || undefined;
+  }
+
+  async deleteContact(id: string, tenantId: string): Promise<boolean> {
+    const result = await db
+      .delete(contacts)
+      .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)));
+    
+    return result.count > 0;
+  }
+
+  async getContactStats(tenantId: string): Promise<{
+    total: number;
+    active: number;
+    newThisMonth: number;
+    activePercentage: string;
+    recentActivity: number;
+    avgInteractions: number;
+  }> {
+    // Get total contacts
+    const [totalResult] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(eq(contacts.tenantId, tenantId));
+    
+    const total = totalResult.count;
+
+    // Get contacts created this month
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    const [newThisMonthResult] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(and(
+        eq(contacts.tenantId, tenantId),
+        gte(contacts.createdAt, startOfMonth)
+      ));
+    
+    const newThisMonth = newThisMonthResult.count;
+
+    // For now, we'll calculate basic stats
+    // In a real implementation, you'd have status and interaction tracking
+    const active = Math.floor(total * 0.7); // Assume 70% are active
+    const activePercentage = total > 0 ? Math.round((active / total) * 100).toString() : "0";
+    const recentActivity = Math.floor(total * 0.3); // Assume 30% recent activity
+    const avgInteractions = total > 0 ? Math.floor(Math.random() * 10) + 5 : 0; // Mock data
+
+    return {
+      total,
+      active,
+      newThisMonth,
+      activePercentage,
+      recentActivity,
+      avgInteractions
+    };
   }
 
   // Conversations

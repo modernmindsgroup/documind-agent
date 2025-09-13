@@ -900,6 +900,104 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // Contacts API endpoints
+  app.get('/api/contacts', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { search, status, source, limit, offset } = req.query;
+      const filters = {
+        search: search as string,
+        status: status as string,
+        source: source as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      };
+      
+      const contacts = await storage.getContactsByTenant(req.user!.tenantId, filters);
+      res.json(contacts);
+    } catch (error) {
+      console.error('Get contacts error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/contacts/stats', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const stats = await storage.getContactStats(req.user!.tenantId);
+      res.json(stats);
+    } catch (error) {
+      console.error('Get contact stats error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/contacts/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const contact = await storage.getContactById(id, req.user!.tenantId);
+      
+      if (!contact) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+      
+      res.json(contact);
+    } catch (error) {
+      console.error('Get contact error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/contacts', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertContactSchema.parse({
+        ...req.body,
+        tenantId: req.user!.tenantId,
+      });
+      
+      const contact = await storage.createContact(validatedData);
+      res.status(201).json(contact);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Create contact error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/contacts/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      const contact = await storage.updateContact(id, updateData, req.user!.tenantId);
+      
+      if (!contact) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+      
+      res.json(contact);
+    } catch (error) {
+      console.error('Update contact error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/contacts/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteContact(id, req.user!.tenantId);
+      
+      if (!success) {
+        return res.status(404).json({ error: 'Contact not found' });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error('Delete contact error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Webhooks routes
   app.get('/api/webhooks', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
