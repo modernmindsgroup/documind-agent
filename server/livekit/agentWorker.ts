@@ -445,17 +445,7 @@ export function isWorkerRunning(): boolean {
  */
 export async function getWorkerHealth(): Promise<{ healthy: boolean; message: string }> {
   try {
-    // Check if worker is starting
-    if (workerPromise && !workerInstance) {
-      return { healthy: true, message: 'Worker starting up' };
-    }
-    
-    // Check if worker is running
-    if (!workerInstance && !workerPromise) {
-      return { healthy: false, message: 'Worker not started' };
-    }
-    
-    // Basic health check - ensure environment variables are still available
+    // Check environment variables first (required for worker to start)
     if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
       return { healthy: false, message: 'LiveKit configuration missing' };
     }
@@ -464,7 +454,19 @@ export async function getWorkerHealth(): Promise<{ healthy: boolean; message: st
       return { healthy: false, message: 'OpenAI API key missing' };
     }
     
-    return { healthy: true, message: 'Worker running and healthy' };
+    // Check if worker is currently starting
+    if (workerPromise && !workerInstance) {
+      return { healthy: true, message: 'Worker starting up' };
+    }
+    
+    // Check if worker is running
+    if (workerInstance) {
+      return { healthy: true, message: 'Worker running and healthy' };
+    }
+    
+    // For on-demand workers: if environment is configured, consider it healthy (trigger restart)
+    // The worker will start automatically when needed
+    return { healthy: true, message: 'Ready to start on-demand' };
     
   } catch (error) {
     return { healthy: false, message: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}` };

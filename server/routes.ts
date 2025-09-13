@@ -347,13 +347,9 @@ async function checkLiveKitEnvironment(): Promise<boolean> {
 async function checkAgentWorkerHealth(): Promise<boolean> {
   try {
     // Import worker health check function
-    const { getWorkerHealth, isWorkerRunning } = await import('./livekit/agentWorker');
+    const { getWorkerHealth } = await import('./livekit/agentWorker');
     
-    if (!isWorkerRunning()) {
-      console.warn('⚠️ LiveKit agent worker not running');
-      return false;
-    }
-
+    // Use the comprehensive health check (now handles on-demand workers)
     const workerHealth = await getWorkerHealth();
     if (!workerHealth.healthy) {
       console.warn(`⚠️ Agent worker unhealthy: ${workerHealth.message}`);

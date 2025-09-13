@@ -1,0 +1,81 @@
+🚀 Initializing EchoAgent Voice Widget with comprehensive agent detection...
+voice-only-widget.js:1252 ✅ Agent configuration loaded: Sales Agent
+voice-only-widget.js:1258 🔍 Starting agent status monitoring...
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:1197 [Violation] Added non-passive event listener to a scroll-blocking 'touchstart' event. Consider marking event handler as 'passive' to make the page more responsive. See https://www.chromestatus.com/feature/5745543795965952
+setupEventListeners @ voice-only-widget.js:1197
+initWidget @ voice-only-widget.js:1282
+await in initWidget
+(anonymous) @ voice-only-widget.js:1310
+(anonymous) @ voice-only-widget.js:1313
+voice-only-widget.js:1292 ✅ EchoAgent Voice Widget initialized successfully with agent detection
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785662722}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:99 Contact info stored for voice call: Modern Minds
+voice-only-widget.js:212 📞 Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785672193}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:256  ❌ Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+startVoiceCall @ voice-only-widget.js:256
+await in startVoiceCall
+(anonymous) @ voice-only-widget.js:1134
+voice-only-widget.js:1143  Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+(anonymous) @ voice-only-widget.js:1143
+[NEW] Explain Console errors by using Copilot in Edge: click
+         
+         to explain an error. 
+        Learn more
+        Don't show again
+voice-only-widget.js:99 Contact info stored for voice call: Modern Minds
+voice-only-widget.js:212 📞 Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785684535}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:256  ❌ Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+startVoiceCall @ voice-only-widget.js:256
+await in startVoiceCall
+(anonymous) @ voice-only-widget.js:1134
+voice-only-widget.js:1143  Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+(anonymous) @ voice-only-widget.js:1143
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785692827}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785722952}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785752926}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785782971}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785812941}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785842900}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:99 Contact info stored for voice call: Modern Minds
+voice-only-widget.js:212 📞 Starting voice call for agent: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:106 🔍 Checking agent status for: e6395d0e-802f-4a62-bf8f-4c65f707cee4
+voice-only-widget.js:111 📊 Agent status response: {available: false, reason: 'Agent busy or starting up', ts: 1757785847382}
+voice-only-widget.js:122 ⚠️ Agent is currently unavailable: Agent busy or starting up
+voice-only-widget.js:256  ❌ Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+startVoiceCall @ voice-only-widget.js:256
+await in startVoiceCall
+(anonymous) @ voice-only-widget.js:1134
+voice-only-widget.js:1143  Failed to start voice call: Error: Agent is currently unavailable
+    at startVoiceCall (voice-only-widget.js:221:23)
+    at async HTMLButtonElement.<anonymous> (voice-only-widget.js:1134:9)
+(anonymous) @ voice-only-widget.js:1143
