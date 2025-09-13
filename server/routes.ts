@@ -503,7 +503,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         editedBy: req.user!.id,
       });
       
+      // Create the agent
       const agent = await storage.createAgent(validatedData);
+      
+      // Auto-create default room for the agent
+      const room = await storage.createRoom({
+        tenantId: req.user!.tenantId,
+        name: `${agent.name} - Default Room`,
+        createdByAgentId: agent.id,
+        status: 'active'
+      });
+      
+      // Create room_agent entry linking the agent to the room as primary
+      await storage.createRoomAgent({
+        roomId: room.id,
+        agentId: agent.id,
+        role: 'primary'
+      });
+      
       res.status(201).json(agent);
     } catch (error) {
       if (error instanceof z.ZodError) {
