@@ -12,6 +12,7 @@ import {
   cli,
   defineAgent,
   voice,
+  metrics,
 } from '@livekit/agents';
 import { fileURLToPath } from 'url';
 import * as deepgram from '@livekit/agents-plugin-deepgram';
@@ -163,21 +164,28 @@ export const livekitVoiceAgent = defineAgent({
             voice: agentConfig.voiceSettings.voice as any,
             model: agentConfig.voiceSettings.model || 'tts-1',
           }),
-          // Turn detection will be handled automatically by LiveKit
-          // turnDetection: new livekit.turnDetector.EOUModel(),
+          // Turn detection using MultilingualModel for better accuracy
+          turnDetection: new livekit.turnDetector.MultilingualModel(),
         });
       }
 
-      // Connect to the room first (required before session.start())
-      await ctx.connect();
-
-      // Start the agent session
+      // Start the agent session first (official LiveKit pattern)
       await session.start({
         agent: assistant,
         room: ctx.room,
         inputOptions: {
           noiseCancellation: BackgroundVoiceCancellation(),
         },
+      });
+
+      // Connect to the room after session is started
+      await ctx.connect();
+
+      // Add metrics collection for performance monitoring
+      const usageCollector = new metrics.UsageCollector();
+      session.on(voice.AgentSessionEventTypes.MetricsCollected, (ev) => {
+        metrics.logMetrics(ev.metrics);
+        usageCollector.collect(ev.metrics);
       });
       
       console.log(`✅ Agent ${agentConfig.agentName} connected to room: ${ctx.room.name}`);
