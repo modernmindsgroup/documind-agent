@@ -14,7 +14,9 @@ import {
   insertMessageSchema,
   insertContactSchema,
   insertRoomSchema,
-  insertRoomAgentSchema
+  insertRoomAgentSchema,
+  insertCallSchema,
+  updateCallSchema
 } from "@shared/schema";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -464,6 +466,18 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json(metrics);
     } catch (error) {
       console.error('Dashboard metrics error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Dashboard recent activity
+  app.get('/api/dashboard/recent-activity', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const activities = await storage.getRecentActivity(req.user!.tenantId, limit);
+      res.json(activities);
+    } catch (error) {
+      console.error('Dashboard recent activity error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

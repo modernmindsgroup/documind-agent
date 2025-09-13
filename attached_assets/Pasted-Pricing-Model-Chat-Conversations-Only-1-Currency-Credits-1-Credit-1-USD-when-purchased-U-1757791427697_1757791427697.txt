@@ -1,0 +1,83 @@
+Pricing Model (Chat Conversations Only)
+1. Currency & Credits
+
+1 Credit = 1 USD (when purchased).
+
+Users prepay credits (wallet system).
+
+Free Trial: New users get 10 free credits when they sign up.
+
+2. Consumption Rules
+
+Credits are deducted per chat message sent or received, based on resource usage:
+
+Component	Cost per Message
+Platform fee (chat orchestration, logging, infra)	$0.002 / message
+LLM Usage (depends on tokens)	$0.005 / short message (≤500 tokens)
+$0.01 / long message (≤1500 tokens)
+Optional Add-ons (if enabled later: e.g. sentiment analysis, translation)	$0.002 / add-on per message
+
+➡️ Typical Message = $0.007 (≈ 0.007 credits)
+
+3. Rounding
+
+Round consumption up to the nearest 0.001 credit (to avoid micro-fractions).
+
+4. Example Costs
+
+1 short conversation (10 messages) → 0.07 credits ($0.07)
+
+100 messages in a day → 0.7 credits ($0.70)
+
+1,500 messages per month (~50 per day) → ~10.5 credits ($10.50)
+
+⚙️ Replit Integration Module (Billing)
+
+Here’s how you’d instruct Replit (Node.js + Express + MongoDB/Prisma/Postgres) to integrate this model.
+
+// billing.js
+// Credit-based billing module for chat conversations
+
+import { db } from "./db.js"; // your database adapter
+
+// Deduct credits for a chat message
+export async function deductCredits(userId, tokensUsed) {
+  // Define costs
+  const PLATFORM_FEE = 0.002; 
+  let llmFee = tokensUsed <= 500 ? 0.005 : 0.01;
+
+  const totalCost = PLATFORM_FEE + llmFee;
+  const roundedCost = Math.ceil(totalCost * 1000) / 1000; // round up to 0.001
+
+  // Fetch user wallet
+  let user = await db.user.findUnique({ where: { id: userId } });
+
+  if (!user || user.credits < roundedCost) {
+    throw new Error("Insufficient credits");
+  }
+
+  // Deduct
+  await db.user.update({
+    where: { id: userId },
+    data: { credits: user.credits - roundedCost },
+  });
+
+  return roundedCost;
+}
+
+// Award signup bonus
+export async function grantSignupCredits(userId) {
+  const BONUS_CREDITS = 10; // $10 free trial
+  await db.user.update({
+    where: { id: userId },
+    data: { credits: { increment: BONUS_CREDITS } },
+  });
+}
+
+// Top-up credits
+export async function addCredits(userId, amountUsd) {
+  await db.user.update({
+    where: { id: userId },
+    data: { credits: { increment: amountUsd } }, // 1 credit = $1
+  });
+}

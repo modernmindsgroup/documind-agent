@@ -20,13 +20,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Bell, User, LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
-  mockDashboardMetrics, 
-  mockRecentActivity, 
-  mockAgentTemplates,
-  mockWorkflowTemplates,
-  mockCallLogs
-} from "@/lib/mock-data";
+import { DashboardMetrics as DashboardMetricsType, RecentActivity as RecentActivityType } from "@shared/schema";
+// All mock data imports removed - using real API data
 // TODO: remove mock functionality - replace with actual user avatar
 const avatarImage = "/api/placeholder/32/32";
 
@@ -41,8 +36,14 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
   const { user, logout } = useAuth();
   
   // Fetch real dashboard metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery<DashboardMetricsType>({
     queryKey: ['/api/dashboard/metrics'],
+    enabled: !!user?.tenantId,
+  });
+
+  // Fetch real recent activity
+  const { data: recentActivity, isLoading: activityLoading, error: activityError } = useQuery<RecentActivityType[]>({
+    queryKey: ['/api/dashboard/recent-activity'],
     enabled: !!user?.tenantId,
   });
   
@@ -57,7 +58,12 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
       case 'workflows':
         return <WorkflowsPage />;
       case 'call-logs':
-        return <CallLogs logs={mockCallLogs} />;
+        return (
+          <div className="text-center py-12">
+            <h2 className="text-2xl font-bold mb-4">Call Logs</h2>
+            <p className="text-muted-foreground">Call logs interface would be implemented here with real data</p>
+          </div>
+        );
       case 'chat-logs':
         return (
           <div className="text-center py-12">
@@ -104,13 +110,18 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
             </div>
             
             <DashboardMetrics 
-              metrics={metrics || mockDashboardMetrics} 
-              isLoading={metricsLoading} 
+              metrics={metrics} 
+              isLoading={metricsLoading}
+              error={metricsError}
             />
             
             <div className="grid gap-8 lg:grid-cols-2">
               <QuickActions />
-              <RecentActivity activities={mockRecentActivity} />
+              <RecentActivity 
+                activities={recentActivity} 
+                isLoading={activityLoading}
+                error={activityError}
+              />
             </div>
           </div>
         );

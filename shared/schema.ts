@@ -644,6 +644,28 @@ export const insertRoomAgentSchema = createInsertSchema(roomAgents).pick({
   role: true,
 });
 
+export const insertCallSchema = createInsertSchema(calls).pick({
+  tenantId: true,
+  agentId: true,
+  roomId: true,
+  contactId: true,
+  direction: true,
+  status: true,
+  callToken: true,
+  durationSeconds: true,
+  recordingUrl: true,
+  transcriptUrl: true,
+  metadata: true,
+});
+
+export const updateCallSchema = createInsertSchema(calls).pick({
+  status: true,
+  durationSeconds: true,
+  recordingUrl: true,
+  transcriptUrl: true,
+  metadata: true,
+}).partial();
+
 
 
 
@@ -679,4 +701,40 @@ export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof rooms.$inferSelect;
 export type InsertRoomAgent = z.infer<typeof insertRoomAgentSchema>;
 export type RoomAgent = typeof roomAgents.$inferSelect;
+export type InsertCall = z.infer<typeof insertCallSchema>;
 export type Call = typeof calls.$inferSelect;
+
+// Shared API Response Types - prevent type drift between server and client
+export interface DashboardMetrics {
+  totalAgents: number;
+  totalWorkflows: number;
+  totalCalls: number;
+  totalChats: number;
+  monthlyCallCost: number;
+  monthlyCallMinutes: number;
+}
+
+export interface RecentActivity {
+  id: string;
+  type: 'agent_created' | 'workflow_updated' | 'call_completed' | 'chat_ended';
+  title: string;
+  description: string;
+  timestamp: string;
+  user: string;
+}
+
+export interface AgentStats {
+  totalCalls: number;
+  successRate: number;
+  averageDuration: number;
+  weeklyGrowth: number;
+}
+
+export interface AgentActivity {
+  id: string;
+  type: 'call' | 'chat';
+  status: 'completed' | 'failed' | 'active';
+  phoneNumber?: string;
+  duration?: number;
+  createdAt: Date;
+}

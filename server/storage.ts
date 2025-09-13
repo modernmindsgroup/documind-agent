@@ -154,6 +154,15 @@ export interface IStorage {
     monthlyCallMinutes: number;
   }>;
 
+  getRecentActivity(tenantId: string, limit?: number): Promise<{
+    id: string;
+    type: 'agent_created' | 'workflow_updated' | 'call_completed' | 'chat_ended';
+    title: string;
+    description: string;
+    timestamp: string;
+    user: string;
+  }[]>;
+
   // Agent-specific methods
   getAgentStats(agentId: string, tenantId: string): Promise<{
     totalCalls: number;
@@ -628,6 +637,152 @@ export class DatabaseStorage implements IStorage {
       monthlyCallMinutes
     };
 
+  }
+
+  async getRecentActivity(tenantId: string, limit: number = 10): Promise<{
+    id: string;
+    type: 'agent_created' | 'workflow_updated' | 'call_completed' | 'chat_ended';
+    title: string;
+    description: string;
+    timestamp: string;
+    user: string;
+  }[]> {
+    const activities: Array<{
+      id: string;
+      type: 'agent_created' | 'workflow_updated' | 'call_completed' | 'chat_ended';
+      title: string;
+      description: string;
+      timestamp: string;
+      user: string;
+    }> = [];
+
+    // Get recent agents created (last 30 days) - fetch more to ensure global sorting
+    const recentAgents = await db
+      .select({
+        id: agents.id,
+        name: agents.name,
+        createdAt: agents.createdAt,
+        editedBy: agents.editedBy
+      })
+      .from(agents)
+      .leftJoin(users, eq(agents.editedBy, users.id))
+      .where(
+        and(
+          eq(agents.tenantId, tenantId),
+          gte(agents.createdAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+        )
+      )
+      .orderBy(desc(agents.createdAt))
+      .limit(limit * 3); // Fetch more to avoid missing recent items in global sort
+
+    recentAgents.forEach(agent => {
+      activities.push({
+        id: agent.id,
+        type: 'agent_created',
+        title: `Agent "${agent.name}" created`,
+        description: `New agent was added to the system`,
+        timestamp: agent.createdAt?.toISOString() || new Date().toISOString(),
+        user: agent.editedBy || 'System'
+      });
+    });
+
+    // Get recent workflows updated (last 30 days) - fetch more to ensure global sorting
+    const recentWorkflows = await db
+      .select({
+        id: workflows.id,
+        name: workflows.name,
+        updatedAt: workflows.updatedAt
+      })
+      .from(workflows)
+      .where(
+        and(
+          eq(workflows.tenantId, tenantId),
+          gte(workflows.updatedAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+        )
+      )
+      .orderBy(desc(workflows.updatedAt))
+      .limit(limit * 3); // Fetch more to avoid missing recent items in global sort
+
+    recentWorkflows.forEach(workflow => {
+      activities.push({
+        id: workflow.id,
+        type: 'workflow_updated',
+        title: `Workflow "${workflow.name}" updated`,
+        description: `Workflow configuration was modified`,
+        timestamp: workflow.updatedAt?.toISOString() || new Date().toISOString(),
+        user: 'System'
+      });
+    });
+
+    // Get recent completed calls (last 7 days) - fetch more to ensure global sorting
+    const recentCalls = await db
+      .select({
+        id: callLogs.id,
+        callId: callLogs.callId,
+        agentId: callLogs.agentId,
+        status: callLogs.status,
+        startTime: callLogs.startTime,
+        duration: callLogs.duration
+      })
+      .from(callLogs)
+      .leftJoin(agents, eq(callLogs.agentId, agents.id))
+      .where(
+        and(
+          eq(callLogs.tenantId, tenantId),
+          gte(callLogs.startTime, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+        )
+      )
+      .orderBy(desc(callLogs.startTime))
+      .limit(limit * 3); // Fetch more to avoid missing recent items in global sort
+
+    recentCalls.forEach(call => {
+      activities.push({
+        id: call.id,
+        type: 'call_completed',
+        title: `Call ${call.status}`,
+        description: `${call.duration ? Math.floor(call.duration / 60) : 0} min call completed`,
+        timestamp: call.startTime?.toISOString() || new Date().toISOString(),
+        user: 'System'
+      });
+    });
+
+    // Get recent chat sessions (last 7 days) - fetch more to ensure global sorting
+    const recentChats = await db
+      .select({
+        id: chatLogs.id,
+        chatId: chatLogs.chatId,
+        agentId: chatLogs.agentId,
+        status: chatLogs.status,
+        startTime: chatLogs.startTime,
+        messageCount: chatLogs.messageCount
+      })
+      .from(chatLogs)
+      .leftJoin(agents, eq(chatLogs.agentId, agents.id))
+      .where(
+        and(
+          eq(chatLogs.tenantId, tenantId),
+          gte(chatLogs.startTime, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+        )
+      )
+      .orderBy(desc(chatLogs.startTime))
+      .limit(limit * 3); // Fetch more to avoid missing recent items in global sort
+
+    recentChats.forEach(chat => {
+      activities.push({
+        id: chat.id,
+        type: 'chat_ended',
+        title: `Chat ${chat.status}`,
+        description: `${chat.messageCount || 0} messages exchanged`,
+        timestamp: chat.startTime?.toISOString() || new Date().toISOString(),
+        user: 'System'
+      });
+    });
+
+    // Sort all activities globally by timestamp DESC and apply final limit
+    // This ensures true chronological order across all activity types
+    return activities
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
   }
 
   // Agent-specific stats and activity methods

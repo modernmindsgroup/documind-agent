@@ -1,11 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Workflow, Phone, MessageSquare, Activity } from "lucide-react";
-import { RecentActivity as ActivityType } from "@/lib/types";
+import { RecentActivity as ActivityType } from "@shared/schema";
 
 interface RecentActivityProps {
-  activities: ActivityType[];
+  activities?: ActivityType[];
+  isLoading?: boolean;
+  error?: Error | null;
 }
 
 const activityIcons = {
@@ -22,7 +25,7 @@ const activityColors = {
   chat_ended: "bg-orange-500",
 };
 
-export function RecentActivity({ activities }: RecentActivityProps) {
+export function RecentActivity({ activities, isLoading, error }: RecentActivityProps) {
   return (
     <Card data-testid="card-recent-activity">
       <CardHeader>
@@ -33,7 +36,23 @@ export function RecentActivity({ activities }: RecentActivityProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {activities.length === 0 ? (
+          {error ? (
+            <div className="text-center py-8">
+              <Activity className="h-12 w-12 mx-auto mb-4 text-destructive opacity-50" />
+              <p className="text-destructive font-medium">Failed to load recent activity</p>
+              <p className="text-sm text-muted-foreground">Please try refreshing the page</p>
+            </div>
+          ) : isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-start space-x-3">
+                <Skeleton className="h-8 w-8 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </div>
+            ))
+          ) : !activities || activities.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No recent activity</p>

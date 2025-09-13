@@ -1,11 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bot, Workflow, Phone, MessageSquare, DollarSign, Clock } from "lucide-react";
-import { DashboardMetrics as MetricsType } from "@/lib/types";
+import { DashboardMetrics as MetricsType } from "@shared/schema";
 
 interface DashboardMetricsProps {
-  metrics: MetricsType;
+  metrics?: MetricsType;
   isLoading?: boolean;
+  error?: Error | null;
 }
 
 const metricCards = [
@@ -53,12 +54,39 @@ const metricCards = [
   },
 ];
 
-export function DashboardMetrics({ metrics, isLoading }: DashboardMetricsProps) {
+export function DashboardMetrics({ metrics, isLoading, error }: DashboardMetricsProps) {
+  // Handle error state
+  if (error) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {metricCards.map((card) => {
+          const Icon = card.icon;
+          
+          return (
+            <Card key={card.title} className="border-destructive" data-testid={`card-metric-${card.key}`}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  {card.title}
+                </CardTitle>
+                <Icon className={`h-4 w-4 text-destructive`} />
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-destructive" data-testid={`error-${card.key}`}>
+                  Failed to load
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       {metricCards.map((card) => {
         const Icon = card.icon;
-        const value = metrics[card.key] as number;
+        const value = metrics?.[card.key] as number | undefined;
         
         return (
           <Card key={card.title} className="hover-elevate" data-testid={`card-metric-${card.key}`}>
@@ -72,8 +100,10 @@ export function DashboardMetrics({ metrics, isLoading }: DashboardMetricsProps) 
               <div className="text-2xl font-bold" data-testid={`value-${card.key}`}>
                 {isLoading ? (
                   <Skeleton className="h-8 w-20" />
-                ) : (
+                ) : value !== undefined ? (
                   card.format(value)
+                ) : (
+                  <span className="text-muted-foreground">-</span>
                 )}
               </div>
             </CardContent>
