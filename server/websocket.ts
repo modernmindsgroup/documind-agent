@@ -67,8 +67,8 @@ class InProcessVoiceAgent {
         }
       });
 
-      this.ws.on('close', () => {
-        console.log(`🔌 AI agent disconnected from room: ${this.roomId}`);
+      this.ws.on('close', (code, reason) => {
+        console.log(`🔌 AI agent disconnected from room: ${this.roomId} [code: ${code}, reason: ${reason || 'no reason'}]`);
         this.running = false;
       });
 
@@ -350,6 +350,7 @@ export class VoiceChatServer {
 
     // Auto-spawn AI agent when human joins a voice call
     if (clientType === 'human' && callId && !this.spawnedAgents.has(roomId)) {
+      console.log(`🔍 Spawning AI agent with tenantId: ${tenantId} for room: ${roomId}`);
       this.spawnAIAgent(roomId, tenantId, callId);
     }
 
@@ -410,11 +411,25 @@ export class VoiceChatServer {
 
   private async spawnAIAgent(roomId: string, tenantId?: string, callId?: string): Promise<void> {
     try {
+      // Ensure we have a valid tenantId
+      let validTenantId = tenantId;
+      if (!validTenantId) {
+        // Fallback: get tenantId from room in database  
+        const room = await storage.getRoomByAgentId(roomId.split('-')[0], '');
+        validTenantId = room?.tenantId;
+        
+        if (!validTenantId) {
+          console.error(`❌ Cannot spawn AI agent: no tenantId available for room ${roomId}`);
+          return;
+        }
+        console.log(`🔍 Fallback: Using tenantId ${validTenantId} from room lookup`);
+      }
+
       // Generate a JWT token for the agent that matches WidgetVoiceAuth interface
       const agentToken = jwt.sign(
         { 
           type: 'widget_voice',
-          tenantId: tenantId || '',
+          tenantId: validTenantId,
           roomId: roomId,
           callId: callId || randomUUID(), // Required field
           callToken: randomUUID(), // Required field  
@@ -423,6 +438,8 @@ export class VoiceChatServer {
         process.env.JWT_SECRET || 'development-secret',
         { expiresIn: '7d' }
       );
+      
+      console.log(`🔍 Spawning agent with tenantId: ${validTenantId}`);
 
       // Spawn the agent
       const agent = new InProcessVoiceAgent(roomId, this.baseUrl, agentToken);
@@ -775,6 +792,14 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
       }
       
       if (clientType === 'agent') {
+        // Debug logging for agent authentication
+        console.log(`🔍 Agent auth debug:`, {
+          hasWidgetVoiceAuth: !!widgetVoiceAuth,
+          agentId: widgetVoiceAuth?.agentId,
+          tenantId: widgetVoiceAuth?.tenantId || authData?.tenantId,
+          roomId: widgetVoiceAuth?.roomId
+        });
+        
         // For agents, check if this is an auto-spawned agent by checking JWT claims
         const isAutoSpawned = widgetVoiceAuth && widgetVoiceAuth.agentId === 'auto-spawned-agent';
         
@@ -783,9 +808,11 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
           console.log(`✅ Auto-spawned agent bypassing room verification for room ${roomId}`);
         } else {
           // For regular agents, verify room exists within their tenant
+          console.log(`🔍 Regular agent - checking room ${roomId} exists in database...`);
           room = await storage.getRoom(roomId, tenantId);
           
           if (!room) {
+            console.log(`❌ Room ${roomId} not found for tenant ${tenantId}`);
             ws.send(JSON.stringify({
               type: 'error',
               message: 'Room not found or access denied for your tenant'
@@ -793,6 +820,7 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
             ws.close();
             return;
           }
+          console.log(`✅ Room ${roomId} found in database`);
         }
       } else {
         // For widget (human) connections, validate room-specific token claims
