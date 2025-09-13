@@ -246,7 +246,7 @@
       state.callId = callData.callId;
       
       // Connect to WebSocket for real-time communication
-      await connectToVoiceWebSocket(callData.token);
+      await connectToVoiceWebSocket(callData.jwtToken);
       
       state.connectionState = 'connected';
       updateVoiceUI();
