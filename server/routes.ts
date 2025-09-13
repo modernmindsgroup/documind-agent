@@ -1237,9 +1237,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
 
       // Check LiveKit availability
+      // Note: Worker starts on-demand, so only check environment and service
       const livekitEnvOk = await checkLiveKitEnvironment();
-      const livekitWorkerOk = await checkAgentWorkerHealth();
-      const livekitAvailable = livekitEnvOk && livekitWorkerOk;
+      const livekitAvailable = livekitEnvOk;
 
       platforms.push({
         id: "livekit",
