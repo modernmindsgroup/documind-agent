@@ -394,7 +394,7 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
         
         // Additional security: Verify token was issued for this specific room
         // Widget voice tokens should include roomId for additional validation
-        const tokenRoomId = authData?.roomId || widgetVoiceAuth?.roomId;
+        const tokenRoomId = widgetVoiceAuth?.roomId;
         if (tokenRoomId && tokenRoomId !== roomId) {
           console.warn(`⚠️  Widget token issued for different room: token.roomId=${tokenRoomId}, requested=${roomId}`);
           ws.send(JSON.stringify({
@@ -406,7 +406,7 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
         }
         
         // If callId provided in path, verify it matches token claim
-        const tokenCallId = authData?.callId || widgetVoiceAuth?.callId;
+        const tokenCallId = widgetVoiceAuth?.callId;
         if (callId && tokenCallId && tokenCallId !== callId) {
           console.warn(`⚠️  Widget token issued for different call: token.callId=${tokenCallId}, requested=${callId}`);
           ws.send(JSON.stringify({
@@ -513,8 +513,9 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
           messageBuffer = Buffer.from(message);
           messageSize = message.byteLength;
         } else {
-          // String or other types
-          messageBuffer = Buffer.from(message.toString());
+          // String or other types - handle as string
+          const messageStr = typeof message === 'string' ? message : String(message);
+          messageBuffer = Buffer.from(messageStr);
           messageSize = messageBuffer.length;
         }
         
