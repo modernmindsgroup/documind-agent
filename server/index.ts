@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupWebSocketServer } from "./websocket";
 
 const app = express();
 app.use(express.json());
@@ -40,7 +42,14 @@ app.use((req, res, next) => {
   // Serve static files from public directory (for widget and test files)
   app.use(express.static("public"));
   
-  const server = await registerRoutes(app);
+  // Create HTTP server
+  const httpServer = createServer(app);
+  
+  // Setup WebSocket server for voice calls
+  setupWebSocketServer(httpServer);
+  
+  // Register API routes
+  await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -54,7 +63,7 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    await setupVite(app, httpServer);
   } else {
     serveStatic(app);
   }
@@ -64,7 +73,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
+  httpServer.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,

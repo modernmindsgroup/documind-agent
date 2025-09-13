@@ -1,5 +1,4 @@
 import type { Express } from "express";
-import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { authenticateToken, generateToken, hashPassword, comparePassword, requireTenantAccess, type AuthRequest } from "./auth";
 import { 
@@ -60,7 +59,7 @@ const widgetChatSchema = z.object({
   message: z.string().min(1, "Message is required"),
 });
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express): Promise<void> {
   
   // Authentication routes
   app.post('/api/auth/register', async (req, res) => {
@@ -1235,6 +1234,4 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
 }
