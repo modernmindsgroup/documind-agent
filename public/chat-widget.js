@@ -192,7 +192,8 @@
   // WebSocket connection for real-time voice communication
   async function connectToVoiceWebSocket(token) {
     try {
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+      // Include roomId, clientType (human), and callId in the WebSocket path
+      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/${state.roomId}/human/${state.callId}`;
       console.log('Connecting to WebSocket:', wsUrl);
       
       // Create WebSocket connection with JWT token in protocol header
