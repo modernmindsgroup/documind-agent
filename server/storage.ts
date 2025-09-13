@@ -376,6 +376,27 @@ export class DatabaseStorage implements IStorage {
       .set(updateData)
       .where(eq(agentPreferences.agentId, agentId))
       .returning();
+
+    // If realtimeVoicePlatform is being updated, also update the agent's callPlatform field
+    if (preferences.realtimeVoicePlatform) {
+      const platformMapping: Record<string, string> = {
+        "default": "default",
+        "livekit": "livekit",
+        "Custom": "default", // Legacy value mapping
+        "LiveKit": "livekit", // Legacy value mapping
+      };
+      
+      const callPlatform = platformMapping[preferences.realtimeVoicePlatform] || "default";
+      
+      await db
+        .update(agents)
+        .set({ 
+          callPlatform: callPlatform as "default" | "livekit",
+          updatedAt: new Date() 
+        })
+        .where(and(eq(agents.id, agentId), eq(agents.tenantId, tenantId)));
+    }
+
     return updated || undefined;
   }
 

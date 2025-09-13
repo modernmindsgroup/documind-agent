@@ -79,7 +79,7 @@ const preferencesSchema = z.object({
   displayName: z.string().min(1, "Display name is required"),
   logo: z.string().url().optional().or(z.literal("")),
   widgetTheme: z.enum(["light", "dark", "auto"]),
-  realtimeVoicePlatform: z.enum(["Custom", "LiveKit"]),
+  realtimeVoicePlatform: z.enum(["default", "livekit"]),
 });
 
 type LLMConfig = z.infer<typeof llmConfigSchema>;
@@ -130,7 +130,7 @@ export default function AgentsPage() {
     displayName: string;
     logo: string | null;
     widgetTheme: 'light' | 'dark' | 'auto';
-    realtimeVoicePlatform: 'Custom' | 'LiveKit';
+    realtimeVoicePlatform: 'default' | 'livekit';
   }>({
     queryKey: ['/api/agents', selectedAgent?.id, 'preferences'],
     enabled: !!selectedAgent?.id,
@@ -143,6 +143,16 @@ export default function AgentsPage() {
   }>({
     queryKey: ['/api/conversations', { agentId: selectedAgent?.id }],
     enabled: !!selectedAgent?.id,
+  });
+
+  // Fetch available call platforms
+  const { data: callPlatforms = [], isLoading: platformsLoading } = useQuery<Array<{
+    id: string;
+    name: string;
+    available: boolean;
+    description: string;
+  }>>({
+    queryKey: ['/api/call-platforms'],
   });
 
   // Mutations for agent actions
@@ -214,6 +224,15 @@ export default function AgentsPage() {
     }
   }, [agents, selectedAgent]);
 
+  // Helper function to get default platform based on availability
+  const getDefaultPlatform = () => {
+    const livekitPlatform = callPlatforms.find(p => p.id === "livekit");
+    if (livekitPlatform && livekitPlatform.available) {
+      return "livekit";
+    }
+    return "default";
+  };
+
   // Form instances
   const llmForm = useForm<LLMConfig>({
     resolver: zodResolver(llmConfigSchema),
@@ -251,7 +270,7 @@ export default function AgentsPage() {
       displayName: agentPreferences?.displayName || selectedAgent?.name || "",
       logo: agentPreferences?.logo || "",
       widgetTheme: agentPreferences?.widgetTheme || "light",
-      realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || "Custom",
+      realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || getDefaultPlatform(),
     },
   });
 
@@ -275,10 +294,18 @@ export default function AgentsPage() {
         displayName: agentPreferences?.displayName || selectedAgent.name || "",
         logo: agentPreferences?.logo || "",
         widgetTheme: agentPreferences?.widgetTheme || "light",
-        realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || "Custom",
+        realtimeVoicePlatform: agentPreferences?.realtimeVoicePlatform || getDefaultPlatform(),
       });
     }
   }, [selectedAgent, agentPreferences, llmForm, voiceForm, preferencesForm]);
+
+  // Update platform default when platform data changes and no existing preference exists
+  useEffect(() => {
+    if (callPlatforms.length > 0 && selectedAgent && !agentPreferences?.realtimeVoicePlatform) {
+      const defaultPlatform = getDefaultPlatform();
+      preferencesForm.setValue('realtimeVoicePlatform', defaultPlatform);
+    }
+  }, [callPlatforms, selectedAgent, agentPreferences, preferencesForm]);
 
   const handleToggleStatus = () => {
     if (!selectedAgent) return;
@@ -1234,8 +1261,15 @@ export default function AgentsPage() {
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                      <SelectItem value="Custom">Custom (Current Implementation)</SelectItem>
-                                      <SelectItem value="LiveKit">LiveKit (Coming Soon)</SelectItem>
+                                      {callPlatforms.map((platform) => (
+                                        <SelectItem 
+                                          key={platform.id} 
+                                          value={platform.id}
+                                          disabled={!platform.available}
+                                        >
+                                          {platform.name} {!platform.available && "(Not Available)"}
+                                        </SelectItem>
+                                      ))}
                                     </SelectContent>
                                   </Select>
                                   <FormDescription>

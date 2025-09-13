@@ -1224,6 +1224,38 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  // Call platforms availability
+  app.get('/api/call-platforms', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const platforms = [];
+
+      // Default platform is always available
+      platforms.push({
+        id: "default",
+        name: "Default WebSocket Platform",
+        available: true,
+        description: "WebSocket-based platform for voice calls"
+      });
+
+      // Check LiveKit availability
+      const livekitEnvOk = await checkLiveKitEnvironment();
+      const livekitWorkerOk = await checkAgentWorkerHealth();
+      const livekitAvailable = livekitEnvOk && livekitWorkerOk;
+
+      platforms.push({
+        id: "livekit",
+        name: "LiveKit Platform",
+        available: livekitAvailable,
+        description: "Advanced real-time platform with enhanced voice features"
+      });
+
+      res.json(platforms);
+    } catch (error) {
+      console.error('Call platforms error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Agent-specific stats routes
   app.get('/api/agents/:id/stats', requireTenantAccess, async (req: AuthRequest, res) => {
     try {

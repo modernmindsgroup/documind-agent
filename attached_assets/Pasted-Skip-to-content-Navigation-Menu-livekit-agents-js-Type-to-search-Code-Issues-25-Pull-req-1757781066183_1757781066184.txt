@@ -1,0 +1,408 @@
+Skip to content
+Navigation Menu
+livekit
+agents-js
+
+Type / to search
+Code
+Issues
+25
+Pull requests
+27
+Actions
+Security
+Insights
+Owner avatar
+agents-js
+Public
+livekit/agents-js
+Go to file
+t
+Name		
+toubatbrian
+toubatbrian
+DataStreamAudioOutput (#687)
+3b49909
+ · 
+yesterday
+.changeset
+DataStreamAudioOutput (#687)
+yesterday
+.github
+Workflow Renaming for 1.0 Release (#648)
+2 weeks ago
+LICENSES
+brianyin/ajs-155-support-turn-detector-with-downloading (#526)
+2 months ago
+agents
+DataStreamAudioOutput (#687)
+yesterday
+examples
+Move job_context.connect inside of AgentSession.start (#689)
+5 days ago
+plugins
+Version Packages (#684)
+4 days ago
+scripts
+Merge main into dev-1.0 (#434)
+3 months ago
+.eslintrc
+Shubhra/ajs 104 basic transcription synchronization with speech (#450)
+3 months ago
+.gitignore
+brianyin/ajs-207-google-llm (#593)
+last month
+.prettierignore
+Use org-wide tsconfig and eslint
+last year
+.prettierrc
+Use org-wide tsconfig and eslint
+last year
+CODE_OF_CONDUCT.md
+Add contribution guide and a code of conduct (#132)
+10 months ago
+CONTRIBUTING.md
+ci: rename main to next in workflows (#192)
+9 months ago
+LICENSE
+some cleanup
+last year
+NOTICE
+some cleanup
+last year
+README.md
+Fix readme header (#668)
+2 weeks ago
+REUSE.toml
+brianyin/ajs-107-chatcontext-to_dict-for-observability (#531)
+2 months ago
+api-extractor-shared.json
+Add api-extractor for API consistency
+last year
+package.json
+Pin onnx dependencies on package level (#641)
+3 weeks ago
+pnpm-lock.yaml
+Fix Job memory monitoring (#676)
+2 weeks ago
+pnpm-workspace.yaml
+Use pnpm instead of Bun
+last year
+tsconfig.json
+add stream helper tests (#421)
+3 months ago
+tsup.config.ts
+Merge main into dev-1.0 (#434)
+3 months ago
+turbo.json
+Frontdesk Example (#680)
+2 weeks ago
+vitest.config.ts
+Fix build failures (#428)
+3 months ago
+Repository files navigation
+README
+Code of conduct
+Contributing
+Apache-2.0 license
+The LiveKit icon, the name of the repository and some sample code in the background.
+LiveKit Agents for Node.js
+The Agent Framework is designed for building realtime, programmable participants that run on servers. Use it to create conversational, multi-modal voice agents that can see, hear, and understand.
+
+This is a Node.js distribution of the LiveKit Agents framework, originally written in Python.
+
+Looking for the Python library? Check out Agents.
+
+✨ 1.0 Release ✨
+This README reflects the 1.0 release. See the migration guide if you're trying to upgrade from 0.x.
+
+Features
+Flexible integrations: A comprehensive ecosystem to mix and match the right STT, LLM, TTS, and Realtime API to suit your use case.
+Extensive WebRTC clients: Build client applications using LiveKit's open-source SDK ecosystem, supporting all major platforms.
+Exchange data with clients: Use RPCs and other Data APIs to seamlessly exchange data with clients.
+Semantic turn detection: Uses a transformer model to detect when a user is done with their turn, helps to reduce interruptions.
+Open-source: Fully open-source, allowing you to run the entire stack on your own servers, including LiveKit server, one of the most widely used WebRTC media servers.
+Installation
+The framework includes a variety of plugins that make it easy to process streaming input or generate output. For example, there are plugins for converting text-to-speech or running inference with popular LLMs.
+
+Install pnpm if you haven't already:
+npm install -g pnpm
+To install the core Agents library as well as plugins, run:
+
+pnpm install @livekit/agents
+Currently, only the following plugins are supported:
+
+Plugin	Features
+@livekit/agents-plugin-openai	LLM, TTS, STT
+@livekit/agents-plugin-google	LLM, TTS
+@livekit/agents-plugin-deepgram	STT
+@livekit/agents-plugin-elevenlabs	TTS
+@livekit/agents-plugin-cartesia	TTS
+@livekit/agents-plugin-neuphonic	TTS
+@livekit/agents-plugin-resemble	TTS
+@livekit/agents-plugin-silero	VAD
+@livekit/agents-plugin-livekit	EOU
+Docs and guides
+Documentation on the framework and how to use it can be found here
+
+Core concepts
+Agent: An LLM-based application with defined instructions.
+AgentSession: A container for agents that manages interactions with end users.
+entrypoint: The starting point for an interactive session, similar to a request handler in a web server.
+Worker: The main process that coordinates job scheduling and launches agents for user sessions.
+Usage
+Checkout the quickstart guide
+
+Simple voice agent
+import {
+  type JobContext,
+  type JobProcess,
+  WorkerOptions,
+  cli,
+  defineAgent,
+  llm,
+  voice,
+} from '@livekit/agents';
+import * as deepgram from '@livekit/agents-plugin-deepgram';
+import * as elevenlabs from '@livekit/agents-plugin-elevenlabs';
+import * as openai from '@livekit/agents-plugin-openai';
+import * as silero from '@livekit/agents-plugin-silero';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+
+const lookupWeather = llm.tool({
+  description: 'Used to look up weather information.',
+  parameters: z.object({
+    location: z.string().describe('The location to look up weather information for'),
+  }),
+  execute: async ({ location }, { ctx }) => {
+    return { weather: 'sunny', temperature: 70 };
+  },
+});
+
+export default defineAgent({
+  prewarm: async (proc: JobProcess) => {
+    proc.userData.vad = await silero.VAD.load();
+  },
+  entry: async (ctx: JobContext) => {
+    await ctx.connect();
+
+    const agent = new voice.Agent({
+      instructions: 'You are a friendly voice assistant built by LiveKit.',
+      tools: { lookupWeather },
+    });
+
+    const session = new voice.AgentSession({
+      vad: ctx.proc.userData.vad! as silero.VAD,
+      stt: new deepgram.STT(),
+      llm: new openai.LLM(),
+      tts: new elevenlabs.TTS(),
+    });
+
+    await session.start({
+      agent,
+      room: ctx.room,
+    });
+
+    await session.generateReply({
+      instructions: 'greet the user and ask about their day',
+    });
+  },
+});
+
+cli.runApp(new WorkerOptions({ agent: fileURLToPath(import.meta.url) }));
+You'll need the following environment variables for this example:
+
+DEEPGRAM_API_KEY
+OPENAI_API_KEY
+ELEVEN_API_KEY
+Multi-agent handoff
+This code snippet is abbreviated. For the full example, see multi_agent.ts
+
+type StoryData = {
+  name?: string;
+  location?: string;
+};
+
+class IntroAgent extends voice.Agent<StoryData> {
+  constructor() {
+    super({
+      instructions: `You are a story teller. Your goal is to gather a few pieces of information from the user to make the story personalized and engaging. Ask the user for their name and where they are from.`,
+      tools: {
+        informationGathered: llm.tool({
+          description:
+            'Called when the user has provided the information needed to make the story personalized and engaging.',
+          parameters: z.object({
+            name: z.string().describe('The name of the user'),
+            location: z.string().describe('The location of the user'),
+          }),
+          execute: async ({ name, location }, { ctx }) => {
+            ctx.userData.name = name;
+            ctx.userData.location = location;
+
+            return llm.handoff({
+              agent: new StoryAgent(name, location),
+              returns: "Let's start the story!",
+            });
+          },
+        }),
+      },
+    });
+  }
+
+  // Use inheritance to create agent with custom hooks
+  async onEnter() {
+    this.session.generateReply({
+      instructions: '"greet the user and gather information"',
+    });
+  }
+}
+
+class StoryAgent extends voice.Agent<StoryData> {
+  constructor(name: string, location: string) {
+    super({
+      instructions: `You are a storyteller. Use the user's information in order to make the story personalized.
+        The user's name is ${name}, from ${location}`,
+    });
+  }
+
+  async onEnter() {
+    this.session.generateReply();
+  }
+}
+
+export default defineAgent({
+  prewarm: async (proc: JobProcess) => {
+    proc.userData.vad = await silero.VAD.load();
+  },
+  entry: async (ctx: JobContext) => {
+    await ctx.connect();
+    const participant = await ctx.waitForParticipant();
+    console.log('participant joined: ', participant.identity);
+
+    const userdata: StoryData = {};
+
+    const session = new voice.AgentSession({
+      vad: ctx.proc.userData.vad! as silero.VAD,
+      stt: new deepgram.STT(),
+      llm: new openai.LLM(),
+      tts: new elevenlabs.TTS(),
+      userData: userdata,
+    });
+
+    await session.start({
+      agent: new IntroAgent(),
+      room: ctx.room,
+    });
+  },
+});
+Running your agent
+The framework exposes a CLI interface to run your agent. To get started, you'll need the following environment variables set:
+
+LIVEKIT_URL
+LIVEKIT_API_KEY
+LIVEKIT_API_SECRET
+any additional provider API keys (e.g. OPENAI_API_KEY)
+The following command will start the worker and wait for users to connect to your LiveKit server:
+
+pnpm run build && node ./examples/src/restaurant_agent.ts dev
+Using playground for your agent UI
+To ease the process of building and testing an agent, we've developed a versatile web frontend called "playground". You can use or modify this app to suit your specific requirements. It can also serve as a starting point for a completely custom agent application.
+
+Hosted playground
+Source code
+Playground docs
+Running for production
+pnpm run build && node ./examples/src/restaurant_agent.ts start
+Runs the agent with production-ready optimizations.
+
+FAQ
+What happens when I run my agent?
+When you follow the steps above to run your agent, a worker is started that opens an authenticated WebSocket connection to a LiveKit server instance(defined by your LIVEKIT_URL and authenticated with an access token).
+
+No agents are actually running at this point. Instead, the worker is waiting for LiveKit server to give it a job.
+
+When a room is created, the server notifies one of the registered workers about a new job. The notified worker can decide whether or not to accept it. If the worker accepts the job, the worker will instantiate your agent as a participant and have it join the room where it can start subscribing to tracks. A worker can manage multiple agent instances simultaneously.
+
+If a notified worker rejects the job or does not accept within a predetermined timeout period, the server will route the job request to another available worker.
+
+What happens when I SIGTERM a worker?
+The orchestration system was designed for production use cases. Unlike the typical web server, an agent is a stateful program, so it's important that a worker isn't terminated while active sessions are ongoing.
+
+When calling SIGTERM on a worker, the worker will signal to LiveKit server that it no longer wants additional jobs. It will also auto-reject any new job requests that get through before the server signal is received. The worker will remain alive while it manages any agents connected to rooms.
+
+License
+This project is licensed under Apache-2.0, and is REUSE-3.2 compliant. Refer to the license for details.
+
+
+
+LiveKit Ecosystem
+LiveKit SDKs	Browser · iOS/macOS/visionOS · Android · Flutter · React Native · Rust · Node.js · Python · Unity · Unity (WebGL)
+Server APIs	Node.js · Golang · Ruby · Java/Kotlin · Python · Rust · PHP (community) · .NET (community)
+UI Components	React · Android Compose · SwiftUI
+Agents Frameworks	Python · Node.js · Playground
+Services	LiveKit server · Egress · Ingress · SIP
+Resources	Docs · Example apps · Cloud · Self-hosting · CLI
+About
+Build realtime multimodal AI agents with Node.js
+
+docs.livekit.io/agents
+Resources
+ Readme
+License
+ Apache-2.0 license
+Code of conduct
+ Code of conduct
+Contributing
+ Contributing
+ Activity
+ Custom properties
+Stars
+ 551 stars
+Watchers
+ 21 watching
+Forks
+ 147 forks
+Report repository
+Releases 216
+@livekit/agents-plugin-openai@1.0.3
+Latest
+4 days ago
++ 215 releases
+Packages
+No packages published
+Contributors
+36
+@nbsp
+@toubatbrian
+@Shubhrakanti
+@github-actions[bot]
+@lukasIO
+@bcherry
+@davidzhao
+@gching
+@FlorDonnaSanders
+@sam-trost
+@paulwe
+@viplifes
+@jheising
+@tillkolter
++ 22 contributors
+Languages
+TypeScript
+99.9%
+ 
+JavaScript
+0.1%
+Footer
+© 2025 GitHub, Inc.
+Footer navigation
+Terms
+Privacy
+Security
+Status
+GitHub Community
+Docs
+Contact
+Manage cookies
+Do not share my personal information
