@@ -340,7 +340,7 @@ export class VoiceChatServer {
 
     // Auto-spawn AI agent when human joins a voice call
     if (clientType === 'human' && callId && !this.spawnedAgents.has(roomId)) {
-      this.spawnAIAgent(roomId, tenantId);
+      this.spawnAIAgent(roomId, tenantId, callId);
     }
 
     // Notify other clients
@@ -398,16 +398,17 @@ export class VoiceChatServer {
     }
   }
 
-  private async spawnAIAgent(roomId: string, tenantId?: string): Promise<void> {
+  private async spawnAIAgent(roomId: string, tenantId?: string, callId?: string): Promise<void> {
     try {
-      // Generate a JWT token for the agent
+      // Generate a JWT token for the agent that matches WidgetVoiceAuth interface
       const agentToken = jwt.sign(
         { 
           type: 'widget_voice',
-          tenantId: tenantId,
+          tenantId: tenantId || '',
           roomId: roomId,
-          agentId: 'auto-spawned-agent',
-          timestamp: Date.now()
+          callId: callId || randomUUID(), // Required field
+          callToken: randomUUID(), // Required field  
+          agentId: 'auto-spawned-agent'
         },
         process.env.JWT_SECRET || 'development-secret',
         { expiresIn: '7d' }
