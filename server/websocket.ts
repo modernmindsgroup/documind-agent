@@ -775,16 +775,24 @@ export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceCha
       }
       
       if (clientType === 'agent') {
-        // For agents, verify room exists within their tenant
-        room = await storage.getRoom(roomId, tenantId);
+        // For agents, check if this is an auto-spawned agent by checking JWT claims
+        const isAutoSpawned = widgetVoiceAuth && widgetVoiceAuth.agentId === 'auto-spawned-agent';
         
-        if (!room) {
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: 'Room not found or access denied for your tenant'
-          }));
-          ws.close();
-          return;
+        if (isAutoSpawned) {
+          // Skip room database verification for auto-spawned agents to avoid timing issues
+          console.log(`✅ Auto-spawned agent bypassing room verification for room ${roomId}`);
+        } else {
+          // For regular agents, verify room exists within their tenant
+          room = await storage.getRoom(roomId, tenantId);
+          
+          if (!room) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              message: 'Room not found or access denied for your tenant'
+            }));
+            ws.close();
+            return;
+          }
         }
       } else {
         // For widget (human) connections, validate room-specific token claims
