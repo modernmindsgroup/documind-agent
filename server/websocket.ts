@@ -266,7 +266,7 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
   const voiceServer = new VoiceChatServer();
   const wss = new WebSocketServer({ 
     server,
-    path: '/ws',
+    // Remove path restriction to allow /ws/* paths
     maxPayload: 1024 * 1024 // 1MB limit for audio frames
   });
 
@@ -278,7 +278,8 @@ export function setupWebSocketServer(server: Server): VoiceChatServer {
     // SECURITY: Both agent and widget connections now require JWT authentication
     const pathParts = req.url?.split('/').filter(part => part) || [];
     
-    if (pathParts.length < 2) {
+    // Check if this is a WebSocket connection for voice calls
+    if (pathParts.length < 2 || pathParts[0] !== 'ws') {
       ws.send(JSON.stringify({
         type: 'error',
         message: 'Invalid path format. Expected: /ws/{roomId} or /ws/{roomId}/{clientType} or /ws/{roomId}/{clientType}/{callId}'
