@@ -329,6 +329,7 @@ export const calls = pgTable("calls", {
   contactId: varchar("contact_id"), // Nullable if contact not required
   direction: text("direction", { enum: ["inbound", "outbound"] }).notNull().default("inbound"),
   status: text("status", { enum: ["initiated", "ringing", "connected", "completed", "failed", "canceled"] }).notNull().default("initiated"),
+  callToken: varchar("call_token").notNull().default(sql`gen_random_uuid()`), // Security token for widget access
   startedAt: timestamp("started_at").defaultNow(),
   endedAt: timestamp("ended_at"),
   durationSeconds: integer("duration_seconds"),
@@ -646,11 +647,53 @@ export const insertCallSchema = createInsertSchema(calls).pick({
   contactId: true,
   direction: true,
   status: true,
+  callToken: true,
   endedAt: true,
   durationSeconds: true,
   recordingUrl: true,
   transcriptUrl: true,
   metadata: true,
+});
+
+// Restricted update schema for admin endpoints - only allows mutable fields
+export const updateCallSchema = createInsertSchema(calls).pick({
+  status: true,
+  endedAt: true,
+  durationSeconds: true,
+  recordingUrl: true,
+  transcriptUrl: true,
+  metadata: true,
+}).partial();
+
+// Widget call creation schema with strict validation
+export const widgetCallCreateSchema = z.object({
+  contactId: z.string().uuid().optional(),
+  contactEmail: z.string().email().optional(),
+  contactName: z.string().min(1).optional(),
+  contactPhone: z.string().optional(),
+}).refine((data) => data.contactId || data.contactEmail || data.contactName, {
+  message: "Either contactId or contact information (contactEmail/contactName) must be provided",
+});
+
+// Widget call update schema - even more restricted than admin updates
+export const widgetCallUpdateSchema = z.object({
+  status: z.enum(["completed", "failed", "canceled"]).optional(),
+  endedAt: z.string().datetime().optional(),
+  durationSeconds: z.number().int().min(0).optional(),
+  metadata: z.record(z.any()).optional(),
+}).refine((data) => Object.keys(data).length > 0, {
+  message: "At least one field must be provided for update",
+});
+
+// Sanitized response type for widget endpoints
+export const widgetCallResponseSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  direction: z.string(),
+  startedAt: z.string().optional(),
+  endedAt: z.string().optional(),
+  durationSeconds: z.number().optional(),
+  callToken: z.string(),
 });
 
 // Export types

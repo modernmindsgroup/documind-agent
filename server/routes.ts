@@ -13,7 +13,14 @@ import {
   insertAgentPreferencesSchema,
   insertConversationSchema,
   insertMessageSchema,
-  insertContactSchema
+  insertContactSchema,
+  insertRoomSchema,
+  insertRoomAgentSchema,
+  insertCallSchema,
+  updateCallSchema,
+  widgetCallCreateSchema,
+  widgetCallUpdateSchema,
+  widgetCallResponseSchema
 } from "@shared/schema";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -931,6 +938,271 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.errors });
       }
       console.error('Create message error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Voice Call API endpoints
+  
+  // Admin API endpoints (require authentication)
+  app.get('/api/calls', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { status, agentId, roomId, contactId, direction, limit, offset } = req.query;
+      const calls = await storage.getCallsByTenant(req.user!.tenantId, {
+        status: status as string,
+        agentId: agentId as string,
+        roomId: roomId as string,
+        contactId: contactId as string,
+        direction: direction as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      res.json(calls);
+    } catch (error) {
+      console.error('Get calls error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/calls/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const call = await storage.getCall(req.params.id, req.user!.tenantId);
+      if (!call) {
+        return res.status(404).json({ error: 'Call not found' });
+      }
+      res.json(call);
+    } catch (error) {
+      console.error('Get call error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/calls/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      // Use restricted update schema to prevent modification of immutable fields
+      const validatedData = updateCallSchema.parse(req.body);
+      const call = await storage.updateCall(req.params.id, validatedData, req.user!.tenantId);
+      if (!call) {
+        return res.status(404).json({ error: 'Call not found' });
+      }
+      res.json(call);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update call error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/rooms', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { status, agentId, limit, offset } = req.query;
+      const rooms = await storage.getRoomsByTenant(req.user!.tenantId, {
+        status: status as string,
+        agentId: agentId as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      res.json(rooms);
+    } catch (error) {
+      console.error('Get rooms error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/rooms/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const room = await storage.getRoom(req.params.id, req.user!.tenantId);
+      if (!room) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+      res.json(room);
+    } catch (error) {
+      console.error('Get room error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Widget API endpoints (no authentication required)
+  app.post('/api/widget/agents/:agentId/calls', async (req, res) => {
+    try {
+      // Validate agent ID format
+      if (!req.params.agentId || typeof req.params.agentId !== 'string') {
+        return res.status(400).json({ error: 'Invalid agent ID' });
+      }
+
+      // Validate request body with strict schema
+      const validatedData = widgetCallCreateSchema.parse(req.body);
+
+      // Get agent to verify it exists and get tenant info
+      const agent = await storage.getAgentById(req.params.agentId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+
+      // Get or create contact if provided
+      let contactId = validatedData.contactId;
+      if (!contactId && (validatedData.contactEmail || validatedData.contactName)) {
+        const contactData = insertContactSchema.parse({
+          tenantId: agent.tenantId,
+          email: validatedData.contactEmail || '',
+          name: validatedData.contactName || 'Anonymous',
+          phone: validatedData.contactPhone || null,
+        });
+        const contact = await storage.createContact(contactData);
+        contactId = contact.id;
+      }
+
+      // Get the agent's default room
+      const room = await storage.getRoomByAgentId(agent.id, agent.tenantId);
+      if (!room) {
+        return res.status(404).json({ error: 'No room available for this agent' });
+      }
+
+      // Create the call with auto-generated callToken
+      const callData = insertCallSchema.parse({
+        tenantId: agent.tenantId,
+        agentId: agent.id,
+        roomId: room.id,
+        contactId: contactId || null,
+        direction: 'inbound',
+        status: 'initiated',
+        // callToken will be auto-generated by the database
+      });
+
+      const call = await storage.createCall(callData);
+      
+      // Return sanitized response with callToken for client authentication
+      const sanitizedCall = widgetCallResponseSchema.parse({
+        id: call.id,
+        status: call.status,
+        direction: call.direction,
+        startedAt: call.startedAt,
+        endedAt: call.endedAt,
+        durationSeconds: call.durationSeconds,
+        callToken: call.callToken,
+      });
+      
+      res.status(201).json({
+        call: sanitizedCall,
+        room: { id: room.id, name: room.name } // Only return safe room fields
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Create widget call error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/widget/calls/:callId', async (req, res) => {
+    try {
+      // Validate callId format
+      if (!req.params.callId || typeof req.params.callId !== 'string') {
+        return res.status(400).json({ error: 'Invalid call ID' });
+      }
+
+      // Require callToken for authentication
+      const callToken = req.headers.authorization?.replace('Bearer ', '') || req.query.callToken as string;
+      if (!callToken) {
+        return res.status(401).json({ error: 'Call token required. Provide via Authorization header or callToken query parameter.' });
+      }
+
+      // Find call by ID and validate callToken for security
+      const calls = await storage.getCallsByTenant('', { limit: 1000 });
+      const call = calls.calls.find(c => c.id === req.params.callId);
+      
+      if (!call) {
+        return res.status(404).json({ error: 'Call not found' });
+      }
+
+      // Verify callToken matches for security
+      if (call.callToken !== callToken) {
+        return res.status(403).json({ error: 'Invalid call token' });
+      }
+      
+      // Return sanitized response without sensitive fields
+      const sanitizedCall = widgetCallResponseSchema.parse({
+        id: call.id,
+        status: call.status,
+        direction: call.direction,
+        startedAt: call.startedAt,
+        endedAt: call.endedAt,
+        durationSeconds: call.durationSeconds,
+        callToken: call.callToken,
+      });
+      
+      res.json(sanitizedCall);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Get widget call error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/widget/calls/:callId', async (req, res) => {
+    try {
+      // Validate callId format
+      if (!req.params.callId || typeof req.params.callId !== 'string') {
+        return res.status(400).json({ error: 'Invalid call ID' });
+      }
+
+      // Require callToken for authentication
+      const callToken = req.headers.authorization?.replace('Bearer ', '') || req.query.callToken as string;
+      if (!callToken) {
+        return res.status(401).json({ error: 'Call token required. Provide via Authorization header or callToken query parameter.' });
+      }
+
+      // Validate request body with restricted widget schema
+      const validatedData = widgetCallUpdateSchema.parse(req.body);
+
+      // Find call without tenant scoping first
+      const calls = await storage.getCallsByTenant('', { limit: 1000 });
+      const existingCall = calls.calls.find(c => c.id === req.params.callId);
+      
+      if (!existingCall) {
+        return res.status(404).json({ error: 'Call not found' });
+      }
+
+      // Verify callToken matches for security
+      if (existingCall.callToken !== callToken) {
+        return res.status(403).json({ error: 'Invalid call token' });
+      }
+
+      // Convert endedAt string to Date if provided for type compatibility
+      const updateData: any = { ...validatedData };
+      if (updateData.endedAt) {
+        updateData.endedAt = new Date(updateData.endedAt);
+      }
+
+      // Update the call using the original tenant and restricted fields only
+      const call = await storage.updateCall(req.params.callId, updateData, existingCall.tenantId);
+      
+      if (!call) {
+        return res.status(404).json({ error: 'Call not found after update' });
+      }
+
+      // Return sanitized response without sensitive fields
+      const sanitizedCall = widgetCallResponseSchema.parse({
+        id: call.id,
+        status: call.status,
+        direction: call.direction,
+        startedAt: call.startedAt,
+        endedAt: call.endedAt,
+        durationSeconds: call.durationSeconds,
+        callToken: call.callToken,
+      });
+      
+      res.json(sanitizedCall);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update widget call error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
