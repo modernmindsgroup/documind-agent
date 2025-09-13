@@ -3,6 +3,12 @@ import { Server } from 'http';
 import { randomUUID } from 'crypto';
 import { storage } from './storage';
 import { verifyToken, verifyWidgetVoiceToken } from './auth';
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 interface Client {
   id: string;
@@ -14,9 +20,291 @@ interface Client {
   joinedAt: Date;
 }
 
+// In-process AI agent for automatic spawning
+class InProcessVoiceAgent {
+  private roomId: string;
+  private websocketUrl: string;
+  private ws: WebSocket | null = null;
+  private running = false;
+  private conversationHistory: Array<{role: string, content: string}> = [];
+  private voiceId = '21m00Tcm4TlvDq8ikWAM'; // Rachel voice
+
+  constructor(roomId: string, websocketUrl: string, token: string) {
+    this.roomId = roomId;
+    this.websocketUrl = `${websocketUrl}/ws/${roomId}/agent`;
+    this.validateApiKeys();
+    this.connect(token);
+  }
+
+  private validateApiKeys(): void {
+    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not found in environment variables');
+    if (!process.env.DEEPGRAM_API_KEY) throw new Error('DEEPGRAM_API_KEY not found in environment variables');
+    if (!process.env.ELEVENLABS_API_KEY) throw new Error('ELEVENLABS_API_KEY not found in environment variables');
+    console.log('✅ Agent API keys validated');
+  }
+
+  private async connect(token: string): Promise<void> {
+    try {
+      console.log(`🤖 Spawning AI agent for room: ${this.roomId}`);
+      this.ws = new WebSocket(this.websocketUrl, [`auth.${token}`]);
+      
+      this.ws.on('open', () => {
+        console.log(`✅ AI agent connected to room: ${this.roomId}`);
+        this.running = true;
+      });
+
+      this.ws.on('message', async (message) => {
+        try {
+          const data = JSON.parse(message.toString());
+          await this.handleMessage(data);
+        } catch (error) {
+          console.error('❌ Agent error handling message:', error);
+        }
+      });
+
+      this.ws.on('close', () => {
+        console.log(`🔌 AI agent disconnected from room: ${this.roomId}`);
+        this.running = false;
+      });
+
+      this.ws.on('error', (error) => {
+        console.error(`❌ AI agent WebSocket error in room ${this.roomId}:`, error);
+        this.running = false;
+      });
+
+    } catch (error) {
+      console.error('❌ Agent connection error:', error);
+    }
+  }
+
+  private async handleMessage(data: any): Promise<void> {
+    switch (data.type) {
+      case 'connected':
+        console.log(`✅ Agent connected with ID: ${data.clientId}`);
+        await this.sendMessage({
+          type: 'agent_response',
+          text: 'Hello! I\'m your AI assistant. I can hear and respond to your voice.'
+        });
+        break;
+
+      case 'human_audio':
+        console.log('🎤 Agent processing human audio...');
+        const audioData = data.audio_data || data.audio || data.data;
+        if (!audioData) {
+          console.error('❌ Agent: No audio data found in message');
+          return;
+        }
+        await this.processAudioFromHuman(audioData);
+        break;
+
+      case 'ping':
+        await this.sendMessage({ type: 'pong' });
+        break;
+    }
+  }
+
+  private async processAudioFromHuman(audioData: string): Promise<void> {
+    try {
+      console.log('🔤 Agent transcribing audio...');
+      
+      // Step 1: Transcribe audio using Deepgram
+      const transcription = await this.transcribeAudio(audioData);
+      
+      if (!transcription || transcription.trim() === '') {
+        console.log('❌ Empty transcription, skipping...');
+        await this.sendMessage({
+          type: 'agent_response',
+          text: "I couldn't hear anything. Could you please speak again?"
+        });
+        return;
+      }
+
+      console.log(`💭 Agent transcribed: "${transcription}"`);
+      
+      // Send transcription back to human
+      await this.sendMessage({
+        type: 'transcription',
+        text: transcription
+      });
+
+      // Step 2: Generate AI response using OpenAI
+      console.log('🤖 Agent generating AI response...');
+      const aiResponse = await this.generateAIResponse(transcription);
+      console.log(`💬 Agent AI Response: "${aiResponse}"`);
+
+      // Send text response
+      await this.sendMessage({
+        type: 'agent_response',
+        text: aiResponse
+      });
+
+      // Step 3: Convert response to speech using ElevenLabs
+      console.log('🔊 Agent converting to speech...');
+      const audioResponse = await this.textToSpeech(aiResponse);
+
+      // Send audio response if successful
+      if (audioResponse) {
+        await this.sendMessage({
+          type: 'audio_response',
+          audio: audioResponse,
+          audioData: audioResponse // For client compatibility
+        });
+      }
+    } catch (error) {
+      console.error('❌ Agent error in processAudioFromHuman:', error);
+      await this.sendMessage({
+        type: 'agent_response',
+        text: 'Sorry, I encountered an error processing your message.'
+      });
+    }
+  }
+
+  private async transcribeAudio(audioBase64: string): Promise<string> {
+    try {
+      if (!audioBase64) return '';
+
+      // Remove data URL prefix if present
+      const base64Data = audioBase64.split(';base64,').pop() || audioBase64;
+      const audioBuffer = Buffer.from(base64Data, 'base64');
+      
+      // Create unique temp file to avoid conflicts
+      const tempFile = path.join(__dirname, `temp_audio_${this.roomId}_${Date.now()}.webm`);
+      fs.writeFileSync(tempFile, audioBuffer);
+
+      const response = await axios({
+        method: 'post',
+        url: 'https://api.deepgram.com/v1/listen',
+        data: fs.createReadStream(tempFile),
+        headers: {
+          'Authorization': `Token ${process.env.DEEPGRAM_API_KEY}`,
+          'Content-Type': 'audio/webm'
+        },
+        params: {
+          model: 'nova-2',
+          language: 'en-US',
+          punctuate: true,
+          diarize: false
+        },
+        responseType: 'json'
+      });
+
+      // Clean up temp file
+      fs.unlink(tempFile, (err) => {
+        if (err) console.error('Error deleting temp file:', err);
+      });
+
+      return response.data?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
+
+    } catch (error) {
+      console.error('❌ Agent Deepgram transcription error:', error);
+      return '';
+    }
+  }
+
+  private async generateAIResponse(userMessage: string): Promise<string> {
+    try {
+      // Add to conversation history
+      this.conversationHistory.push({ role: 'user', content: userMessage });
+
+      // Keep conversation history manageable
+      if (this.conversationHistory.length > 10) {
+        this.conversationHistory = this.conversationHistory.slice(-8);
+      }
+
+      const response = await axios.post(
+        'https://api.openai.com/v1/chat/completions',
+        {
+          model: 'gpt-3.5-turbo',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a helpful AI assistant in a voice conversation. Keep responses conversational, friendly, and concise (1-2 sentences usually). Respond naturally as if speaking.'
+            },
+            ...this.conversationHistory
+          ],
+          max_tokens: 150,
+          temperature: 0.7
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const aiResponse = response.data.choices[0].message.content.trim();
+      
+      // Add to conversation history
+      this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+
+      return aiResponse;
+
+    } catch (error) {
+      console.error('❌ Agent OpenAI API error:', error);
+      return 'I apologize, but I\'m having trouble generating a response right now.';
+    }
+  }
+
+  private async textToSpeech(text: string): Promise<string | null> {
+    try {
+      const response = await axios({
+        method: 'post',
+        url: `https://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}`,
+        headers: {
+          'Accept': 'audio/mpeg',
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        data: {
+          text: text,
+          model_id: 'eleven_monolingual_v1',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.5,
+            style: 0.0,
+            use_speaker_boost: true
+          }
+        },
+        responseType: 'arraybuffer',
+        timeout: 30000
+      });
+      
+      // Convert to base64
+      return Buffer.from(response.data).toString('base64');
+
+    } catch (error) {
+      console.error('❌ Agent ElevenLabs TTS error:', error);
+      return null;
+    }
+  }
+
+  private async sendMessage(message: any): Promise<void> {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+    } else {
+      console.error('❌ Agent WebSocket not connected');
+    }
+  }
+
+  public disconnect(): void {
+    if (this.ws) {
+      this.ws.close();
+    }
+    this.running = false;
+    console.log(`🔌 Agent disconnected from room: ${this.roomId}`);
+  }
+}
+
 export class VoiceChatServer {
   private rooms = new Map<string, Set<Client>>();
   private clients = new Map<WebSocket, Client>();
+  private spawnedAgents = new Map<string, InProcessVoiceAgent>(); // Track spawned agents by roomId
+  private baseUrl: string;
+
+  constructor(baseUrl: string = 'ws://localhost:5000') {
+    this.baseUrl = baseUrl;
+  }
 
   registerClient(ws: WebSocket, roomId: string, clientType: 'human' | 'agent' = 'human', callId?: string, tenantId?: string): Client {
     const clientId = randomUUID();
@@ -39,12 +327,26 @@ export class VoiceChatServer {
 
     console.log(`${clientType} client ${clientId} joined room ${roomId}${callId ? ` for call ${callId}` : ''}`);
 
+    // Auto-spawn AI agent when human joins a voice call
+    if (clientType === 'human' && callId && !this.spawnedAgents.has(roomId)) {
+      this.spawnAIAgent(roomId, tenantId);
+    }
+
     // Notify other clients
     this.broadcastToRoom(roomId, {
       type: `${clientType}_joined`,
       clientId: clientId,
       timestamp: new Date().toISOString()
     }, client);
+
+    // Send connection confirmation message
+    ws.send(JSON.stringify({
+      type: 'connected',
+      clientId: clientId,
+      roomId: roomId,
+      clientType: clientType,
+      callId: callId
+    }));
 
     return client;
   }
@@ -56,11 +358,14 @@ export class VoiceChatServer {
     const { roomId, type, id } = client;
     
     // Remove from room
+    let roomIsEmpty = false;
     if (this.rooms.has(roomId)) {
       this.rooms.get(roomId)!.delete(client);
       
-      // Clean up empty rooms
-      if (this.rooms.get(roomId)!.size === 0) {
+      // Check if room is empty before deletion
+      roomIsEmpty = this.rooms.get(roomId)!.size === 0;
+      
+      if (roomIsEmpty) {
         this.rooms.delete(roomId);
       } else {
         // Notify other clients
@@ -74,6 +379,47 @@ export class VoiceChatServer {
 
     this.clients.delete(ws);
     console.log(`${type} client ${id} left room ${roomId}`);
+
+    // Clean up spawned agents if room becomes empty
+    // Fix: Check room emptiness before room deletion to prevent agent cleanup failure
+    if (roomIsEmpty || !this.rooms.has(roomId)) {
+      this.cleanupAgent(roomId);
+    }
+  }
+
+  private async spawnAIAgent(roomId: string, tenantId?: string): Promise<void> {
+    try {
+      // Generate a JWT token for the agent
+      const jwt = require('jsonwebtoken');
+      const agentToken = jwt.sign(
+        { 
+          type: 'widget_voice',
+          tenantId: tenantId,
+          roomId: roomId,
+          agentId: 'auto-spawned-agent',
+          timestamp: Date.now()
+        },
+        process.env.JWT_SECRET || 'development-secret',
+        { expiresIn: '7d' }
+      );
+
+      // Spawn the agent
+      const agent = new InProcessVoiceAgent(roomId, this.baseUrl, agentToken);
+      this.spawnedAgents.set(roomId, agent);
+      
+      console.log(`🤖 Auto-spawned AI agent for room: ${roomId}`);
+    } catch (error) {
+      console.error('❌ Error spawning AI agent:', error);
+    }
+  }
+
+  private cleanupAgent(roomId: string): void {
+    const agent = this.spawnedAgents.get(roomId);
+    if (agent) {
+      agent.disconnect();
+      this.spawnedAgents.delete(roomId);
+      console.log(`🧹 Cleaned up AI agent for room: ${roomId}`);
+    }
   }
 
   broadcastToRoom(roomId: string, message: any, excludeClient?: Client): void {
@@ -288,8 +634,13 @@ export class VoiceChatServer {
   }
 }
 
-export function setupWebSocketServer(server: Server): VoiceChatServer {
-  const voiceServer = new VoiceChatServer();
+export function setupWebSocketServer(server: Server, baseUrl?: string): VoiceChatServer {
+  // Make baseURL configurable for different deployment environments
+  const websocketBaseUrl = baseUrl || 
+    process.env.WEBSOCKET_BASE_URL || 
+    `ws://${process.env.REPL_SLUG ? `${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : 'localhost:5000'}`;
+  
+  const voiceServer = new VoiceChatServer(websocketBaseUrl);
   const wss = new WebSocketServer({ 
     noServer: true,
     maxPayload: 1024 * 1024 // 1MB limit for audio frames
