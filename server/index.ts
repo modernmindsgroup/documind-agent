@@ -5,6 +5,11 @@ import { setupVite, serveStatic, log } from "./vite";
 import { setupWebSocketServer } from "./websocket";
 
 const app = express();
+
+// Raw body middleware for webhook verification (must be before express.json)
+app.use('/api/webhooks', express.raw({ type: 'application/json' }));
+
+// Standard JSON middleware for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

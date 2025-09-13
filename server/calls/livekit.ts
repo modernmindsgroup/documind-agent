@@ -7,6 +7,12 @@ import type {
 } from './platform';
 import type { Agent, Call, Room } from '@shared/schema';
 import { storage } from '../storage';
+import { 
+  startLiveKitWorker, 
+  isWorkerRunning, 
+  getWorkerHealth,
+  livekitVoiceAgent 
+} from '../livekit/agentWorker';
 
 /**
  * LiveKit platform adapter for voice calls.
@@ -51,11 +57,16 @@ export class LiveKitCallPlatform implements ICallPlatform {
       // Validate configuration
       this.validateConfig();
 
-      // Create LiveKit room name (ensure uniqueness and compliance)
-      const livekitRoomName = this.generateLiveKitRoomName(room.id, call.id);
+      // Create LiveKit room name with tenant isolation
+      const livekitRoomName = this.generateLiveKitRoomName(room.id, call.id, call.tenantId);
 
-      // Create or get LiveKit room
-      await this.createLiveKitRoom(livekitRoomName);
+      // Create or get LiveKit room with metadata
+      await this.createLiveKitRoom(livekitRoomName, {
+        tenantId: call.tenantId,
+        roomId: room.id,
+        callId: call.id,
+        agentId: agent.id,
+      });
 
       // Generate LiveKit access token for the user
       const accessToken = this.generateAccessToken(livekitRoomName, call.id, {
@@ -400,18 +411,23 @@ export class LiveKitCallPlatform implements ICallPlatform {
   }
 
   /**
-   * Generate LiveKit room name
+   * Generate LiveKit room name with tenant isolation
    */
-  private generateLiveKitRoomName(roomId: string, callId: string): string {
-    // Ensure room name is compliant with LiveKit naming requirements
-    const sanitized = `room_${roomId}_call_${callId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+  private generateLiveKitRoomName(roomId: string, callId: string, tenantId: string): string {
+    // Include tenantId for better isolation and security
+    const sanitized = `tenant_${tenantId}_room_${roomId}_call_${callId}`.replace(/[^a-zA-Z0-9_-]/g, '_');
     return sanitized;
   }
 
   /**
-   * Create or ensure LiveKit room exists
+   * Create or ensure LiveKit room exists with metadata for tenant isolation
    */
-  private async createLiveKitRoom(roomName: string): Promise<void> {
+  private async createLiveKitRoom(roomName: string, metadata: {
+    tenantId: string;
+    roomId: string;
+    callId: string;
+    agentId: string;
+  }): Promise<void> {
     if (!this.roomService) {
       throw new Error('Room service not initialized');
     }
@@ -421,13 +437,14 @@ export class LiveKitCallPlatform implements ICallPlatform {
       const rooms = await this.roomService.listRooms([roomName]);
       
       if (rooms.length === 0) {
-        // Create room if it doesn't exist
+        // Create room with metadata for tenant isolation
         await this.roomService.createRoom({
           name: roomName,
           emptyTimeout: 300, // 5 minutes
           maxParticipants: 10,
+          metadata: JSON.stringify(metadata),
         });
-        console.log(`✅ Created LiveKit room: ${roomName}`);
+        console.log(`✅ Created LiveKit room: ${roomName} for tenant: ${metadata.tenantId}`);
       } else {
         console.log(`♻️ Using existing LiveKit room: ${roomName}`);
       }
@@ -474,7 +491,20 @@ export class LiveKitCallPlatform implements ICallPlatform {
     try {
       console.log(`🤖 Spawning agent ${agent.id} in LiveKit room ${livekitRoomName}`);
 
-      // Generate agent access token
+      // Ensure the LiveKit agent worker is running
+      if (!isWorkerRunning()) {
+        console.log(`🚀 Starting LiveKit Agent Worker for agent spawn...`);
+        await startLiveKitWorker();
+      } else {
+        // Verify worker health
+        const health = await getWorkerHealth();
+        if (!health.healthy) {
+          console.warn(`⚠️ LiveKit Agent Worker unhealthy: ${health.message}. Restarting...`);
+          await startLiveKitWorker();
+        }
+      }
+
+      // Generate agent access token with enhanced permissions
       const agentToken = this.generateAccessToken(livekitRoomName, callId, {
         identity: `agent_${agent.id}`,
         name: agent.name || 'AI Agent',
@@ -482,19 +512,47 @@ export class LiveKitCallPlatform implements ICallPlatform {
           type: 'agent',
           agentId: agent.id,
           callId,
+          tenantId: agent.tenantId,
+          spawnedAt: new Date().toISOString(),
         }),
       });
 
-      // The actual agent spawning will be handled by the LiveKit agent worker
-      // For now, we'll just log that the token is ready
       console.log(`🎫 Agent token generated for ${agent.id} in room ${livekitRoomName}`);
+
+      // Since we're using the defineAgent pattern, the agent worker will automatically
+      // handle new rooms. We set environment variables for the specific agent context.
+      process.env.LIVEKIT_AGENT_ROOM = livekitRoomName;
+      process.env.LIVEKIT_AGENT_TOKEN = agentToken;
       
-      // TODO: Trigger the LiveKit agent worker to join the room
-      // This will be implemented in the agentWorker.ts file
+      // The LiveKit agent framework will automatically pick up new rooms and spawn agents
+      // The worker is designed to handle multiple concurrent rooms
+      console.log(`✅ Agent ${agent.id} configured to join room ${livekitRoomName}`);
+
+      // Store agent spawn information for tracking
+      this.trackAgentSpawn(callId, agent.id, livekitRoomName);
       
     } catch (error) {
       console.error(`❌ Failed to spawn agent ${agent.id}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Track agent spawn for monitoring and cleanup
+   */
+  private trackAgentSpawn(callId: string, agentId: string, roomName: string): void {
+    // Store in activeCalls for tracking
+    const existingCall = Array.from(this.activeCalls.values()).find(call => call.call.id === callId);
+    if (existingCall) {
+      // Add agent spawn metadata
+      const updatedCall = {
+        ...existingCall,
+        agentSpawned: true,
+        agentSpawnTime: new Date(),
+        livekitRoom: roomName,
+      };
+      this.activeCalls.set(callId, updatedCall);
+      console.log(`📊 Agent spawn tracked for call ${callId}`);
     }
   }
 

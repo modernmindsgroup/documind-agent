@@ -562,6 +562,7 @@ export const insertAgentSchema = createInsertSchema(agents).pick({
   name: true,
   description: true,
   type: true,
+  callPlatform: true,
   editedBy: true,
 });
 

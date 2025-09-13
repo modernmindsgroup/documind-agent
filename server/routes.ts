@@ -25,6 +25,8 @@ import {
 import { z } from "zod";
 import OpenAI from "openai";
 import { callPlatformRegistry } from "./calls/index";
+import * as crypto from "crypto";
+import { WebhookReceiver } from 'livekit-server-sdk';
 
 // Validation schemas
 const loginSchema = z.object({
@@ -60,6 +62,322 @@ const widgetMessageSchema = z.object({
 const widgetChatSchema = z.object({
   message: z.string().min(1, "Message is required"),
 });
+
+// LiveKit webhook schemas
+const livekitWebhookEvent = z.object({
+  event: z.string(),
+  room: z.object({
+    sid: z.string(),
+    name: z.string(),
+    empty_timeout: z.number().optional(),
+    max_participants: z.number().optional(),
+    creation_time: z.number().optional(),
+    turn_password: z.string().optional(),
+    enabled_codecs: z.array(z.string()).optional(),
+    metadata: z.string().optional(),
+    num_participants: z.number().optional(),
+    num_publishers: z.number().optional(),
+    active_recording: z.boolean().optional(),
+  }),
+  participant: z.object({
+    sid: z.string(),
+    identity: z.string(),
+    name: z.string().optional(),
+    state: z.enum(['JOINING', 'JOINED', 'ACTIVE', 'DISCONNECTED']).optional(),
+    tracks: z.array(z.object({
+      sid: z.string(),
+      type: z.enum(['AUDIO', 'VIDEO', 'DATA']).optional(),
+      name: z.string().optional(),
+      muted: z.boolean().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+    })).optional(),
+    metadata: z.string().optional(),
+    joined_at: z.number().optional(),
+    permission: z.object({
+      can_subscribe: z.boolean(),
+      can_publish: z.boolean(),
+      can_publish_data: z.boolean(),
+    }).optional(),
+    region: z.string().optional(),
+    is_publisher: z.boolean().optional(),
+  }).optional(),
+  track: z.object({
+    sid: z.string(),
+    type: z.enum(['AUDIO', 'VIDEO', 'DATA']),
+    name: z.string().optional(),
+    muted: z.boolean().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+  }).optional(),
+  egress_info: z.object({
+    egress_id: z.string(),
+    room_id: z.string(),
+    room_name: z.string(),
+    status: z.string(),
+    started_at: z.number(),
+    ended_at: z.number().optional(),
+    updated_at: z.number(),
+  }).optional(),
+  created_at: z.number(),
+  num_dropped: z.number().optional(),
+});
+
+// Helper function to verify LiveKit webhook signature using proper JWT verification
+function verifyLiveKitWebhookSignature(
+  rawBody: Buffer,
+  authHeader: string,
+  apiSecret: string
+): { isValid: boolean; payload?: any } {
+  try {
+    if (!authHeader || !apiSecret) {
+      return { isValid: false };
+    }
+
+    // Create WebhookReceiver instance
+    const webhookReceiver = new WebhookReceiver('', apiSecret);
+    
+    // Verify and decode the webhook
+    const event = webhookReceiver.receive(rawBody, authHeader);
+    
+    return { isValid: true, payload: event };
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return { isValid: false };
+  }
+}
+
+// Helper function to handle LiveKit webhook events
+async function handleLiveKitWebhookEvent(event: any): Promise<void> {
+  try {
+    console.log(`🎯 Processing LiveKit event: ${event.event}`);
+    
+    // Extract room info and try to find corresponding call
+    const roomName = event.room.name;
+    const callInfo = await extractCallInfoFromRoomName(roomName);
+    
+    if (!callInfo) {
+      console.warn(`⚠️ Could not extract call info from room name: ${roomName}`);
+      return;
+    }
+
+    const { roomId, callId } = callInfo;
+    
+    // Handle different event types
+    switch (event.event) {
+      case 'room_started':
+        console.log(`🏠 Room started: ${roomName}`);
+        await storage.updateCall(callId, {
+          status: 'connected',
+          metadata: {
+            roomStarted: true,
+            roomStartedAt: new Date(event.created_at * 1000).toISOString(),
+            livekitRoomSid: event.room.sid,
+          },
+        }, callInfo.tenantId);
+        break;
+
+      case 'room_finished':
+        console.log(`🏁 Room finished: ${roomName}`);
+        const endTime = new Date(event.created_at * 1000);
+        await storage.updateCall(callId, {
+          status: 'completed',
+          endedAt: endTime,
+          metadata: {
+            roomFinished: true,
+            roomFinishedAt: endTime.toISOString(),
+            livekitRoomSid: event.room.sid,
+          },
+        }, callInfo.tenantId);
+        break;
+
+      case 'participant_joined':
+        console.log(`👤 Participant joined: ${event.participant?.identity} in room ${roomName}`);
+        if (event.participant?.identity?.startsWith('agent_')) {
+          // Agent joined
+          await storage.updateCall(callId, {
+            metadata: {
+              agentJoined: true,
+              agentJoinedAt: new Date(event.created_at * 1000).toISOString(),
+              agentIdentity: event.participant.identity,
+            },
+          }, callInfo.tenantId);
+        } else {
+          // User joined
+          await storage.updateCall(callId, {
+            metadata: {
+              userJoined: true,
+              userJoinedAt: new Date(event.created_at * 1000).toISOString(),
+              userIdentity: event.participant.identity,
+            },
+          }, callInfo.tenantId);
+        }
+        break;
+
+      case 'participant_left':
+        console.log(`👋 Participant left: ${event.participant?.identity} from room ${roomName}`);
+        if (event.participant?.identity?.startsWith('agent_')) {
+          // Agent left
+          await storage.updateCall(callId, {
+            metadata: {
+              agentLeft: true,
+              agentLeftAt: new Date(event.created_at * 1000).toISOString(),
+            },
+          }, callInfo.tenantId);
+        } else {
+          // User left
+          await storage.updateCall(callId, {
+            metadata: {
+              userLeft: true,
+              userLeftAt: new Date(event.created_at * 1000).toISOString(),
+            },
+          }, callInfo.tenantId);
+        }
+        break;
+
+      case 'track_published':
+        console.log(`🎵 Track published: ${event.track?.type} by ${event.participant?.identity}`);
+        break;
+
+      case 'track_unpublished':
+        console.log(`🔇 Track unpublished: ${event.track?.type} by ${event.participant?.identity}`);
+        break;
+
+      case 'recording_started':
+        console.log(`🔴 Recording started for room: ${roomName}`);
+        await storage.updateCall(callId, {
+          metadata: {
+            recordingStarted: true,
+            recordingStartedAt: new Date(event.created_at * 1000).toISOString(),
+          },
+        }, callInfo.tenantId);
+        break;
+
+      case 'recording_finished':
+        console.log(`⏹️ Recording finished for room: ${roomName}`);
+        await storage.updateCall(callId, {
+          recordingUrl: event.egress_info?.room_name || null,
+          metadata: {
+            recordingFinished: true,
+            recordingFinishedAt: new Date(event.created_at * 1000).toISOString(),
+            egressInfo: event.egress_info,
+          },
+        }, callInfo.tenantId);
+        break;
+
+      default:
+        console.log(`🔍 Unhandled LiveKit event: ${event.event}`);
+        break;
+    }
+
+    console.log(`✅ Successfully processed LiveKit event: ${event.event}`);
+  } catch (error) {
+    console.error(`❌ Error handling LiveKit webhook event:`, error);
+    throw error;
+  }
+}
+
+// Helper function to extract call info from room name with tenant isolation
+async function extractCallInfoFromRoomName(roomName: string): Promise<{
+  roomId: string;
+  callId: string;
+  tenantId: string;
+} | null> {
+  try {
+    // Parse room name format: tenant_${tenantId}_room_${roomId}_call_${callId}
+    const roomMatch = roomName.match(/tenant_([^_]+)_room_([^_]+)_call_([^_]+)/);
+    if (!roomMatch) {
+      console.warn(`⚠️ Invalid room name format: ${roomName}. Expected: tenant_<tenantId>_room_<roomId>_call_<callId>`);
+      return null;
+    }
+
+    const [, tenantId, roomId, callId] = roomMatch;
+
+    // Use tenant-scoped lookup instead of global '*' lookup for security
+    const calls = await storage.getCallsByTenant(tenantId, { roomId, limit: 1 });
+    if (calls.calls.length === 0) {
+      console.warn(`⚠️ Call not found: callId=${callId}, roomId=${roomId}, tenantId=${tenantId}`);
+      return null;
+    }
+
+    const call = calls.calls[0];
+    
+    // Verify call matches extracted IDs for security
+    if (call.id !== callId || call.tenantId !== tenantId) {
+      console.error(`❌ Security validation failed: extracted IDs don't match call data`);
+      return null;
+    }
+
+    return {
+      roomId,
+      callId,
+      tenantId,
+    };
+  } catch (error) {
+    console.error('❌ Error extracting call info from room name:', error);
+    return null;
+  }
+}
+
+// Helper function to check LiveKit environment variables
+async function checkLiveKitEnvironment(): Promise<boolean> {
+  try {
+    const requiredVars = [
+      'LIVEKIT_URL',
+      'LIVEKIT_API_KEY', 
+      'LIVEKIT_API_SECRET',
+      'OPENAI_API_KEY'
+    ];
+
+    const missingVars = requiredVars.filter(varName => !process.env[varName]);
+    
+    if (missingVars.length > 0) {
+      console.warn(`⚠️ Missing environment variables: ${missingVars.join(', ')}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Environment check failed:', error);
+    return false;
+  }
+}
+
+// Helper function to check agent worker health
+async function checkAgentWorkerHealth(): Promise<boolean> {
+  try {
+    // Import worker health check function
+    const { getWorkerHealth, isWorkerRunning } = await import('../livekit/agentWorker');
+    
+    if (!isWorkerRunning()) {
+      console.warn('⚠️ LiveKit agent worker not running');
+      return false;
+    }
+
+    const workerHealth = await getWorkerHealth();
+    if (!workerHealth.healthy) {
+      console.warn(`⚠️ Agent worker unhealthy: ${workerHealth.message}`);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ Agent worker health check failed:', error);
+    return false;
+  }
+}
+
+// Helper function to check database connectivity
+async function checkDatabaseHealth(): Promise<boolean> {
+  try {
+    // Try a simple database query to verify connectivity
+    const result = await storage.getTenants({ limit: 1 });
+    return true;
+  } catch (error) {
+    console.error('❌ Database health check failed:', error);
+    return false;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<void> {
   
@@ -166,6 +484,122 @@ export async function registerRoutes(app: Express): Promise<void> {
   } else {
     console.warn('⚠️  OpenAI API key not found. AI chat features will be disabled. Set OPENAI_API_KEY environment variable to enable.');
   }
+
+  // LiveKit webhook endpoint (public, with signature verification)
+  app.post('/api/webhooks/livekit', async (req, res) => {
+    try {
+      console.log('📥 Received LiveKit webhook event');
+      
+      // Get raw body and authorization header
+      const rawBody = req.body as Buffer;
+      const authHeader = req.headers['authorization'] as string;
+      const apiSecret = process.env.LIVEKIT_API_SECRET;
+      
+      if (!apiSecret) {
+        console.warn('⚠️ LIVEKIT_API_SECRET not configured. Skipping signature verification.');
+        return res.status(500).json({ error: 'Server configuration error' });
+      }
+      
+      // Verify webhook signature using proper JWT verification
+      const verificationResult = verifyLiveKitWebhookSignature(rawBody, authHeader, apiSecret);
+      
+      if (!verificationResult.isValid) {
+        console.error('❌ Invalid LiveKit webhook signature');
+        return res.status(401).json({ error: 'Invalid signature' });
+      }
+
+      // Use the verified payload from JWT
+      const webhookEvent = verificationResult.payload;
+      console.log(`📊 LiveKit event: ${webhookEvent.event} for room: ${webhookEvent.room.name}`);
+
+      // Validate webhook event structure
+      const validatedEvent = livekitWebhookEvent.parse(webhookEvent);
+      
+      // Handle different event types
+      await handleLiveKitWebhookEvent(validatedEvent);
+
+      res.status(200).json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        console.error('❌ Invalid webhook payload:', error.errors);
+        return res.status(400).json({ error: 'Invalid webhook payload' });
+      }
+      
+      console.error('❌ LiveKit webhook error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // LiveKit health check endpoint (public)
+  app.get('/api/health/livekit', async (req, res) => {
+    try {
+      console.log('🏥 LiveKit health check requested');
+      
+      // Get LiveKit platform instance
+      const livekitPlatform = callPlatformRegistry.getPlatform('livekit');
+      if (!livekitPlatform) {
+        return res.status(503).json({
+          healthy: false,
+          message: 'LiveKit platform not registered',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Perform comprehensive health checks
+      const healthChecks = await Promise.allSettled([
+        // 1. Check platform health
+        livekitPlatform.isHealthy(),
+        
+        // 2. Check environment variables
+        checkLiveKitEnvironment(),
+        
+        // 3. Check agent worker health
+        checkAgentWorkerHealth(),
+        
+        // 4. Check database connectivity
+        checkDatabaseHealth(),
+      ]);
+
+      const [platformHealth, envHealth, workerHealth, dbHealth] = healthChecks;
+
+      const healthStatus = {
+        healthy: healthChecks.every(check => check.status === 'fulfilled' && check.value === true),
+        timestamp: new Date().toISOString(),
+        checks: {
+          platform: {
+            status: platformHealth.status === 'fulfilled' ? (platformHealth.value ? 'healthy' : 'unhealthy') : 'error',
+            message: platformHealth.status === 'fulfilled' ? 'LiveKit platform reachable' : 'Platform check failed',
+          },
+          environment: {
+            status: envHealth.status === 'fulfilled' ? (envHealth.value ? 'healthy' : 'unhealthy') : 'error', 
+            message: envHealth.status === 'fulfilled' ? 'Environment variables configured' : 'Missing environment variables',
+          },
+          worker: {
+            status: workerHealth.status === 'fulfilled' ? (workerHealth.value ? 'healthy' : 'unhealthy') : 'error',
+            message: workerHealth.status === 'fulfilled' ? 'Agent worker operational' : 'Agent worker issues',
+          },
+          database: {
+            status: dbHealth.status === 'fulfilled' ? (dbHealth.value ? 'healthy' : 'unhealthy') : 'error',
+            message: dbHealth.status === 'fulfilled' ? 'Database accessible' : 'Database connectivity issues',
+          },
+        },
+      };
+
+      const statusCode = healthStatus.healthy ? 200 : 503;
+      console.log(`🏥 LiveKit health check completed: ${healthStatus.healthy ? 'HEALTHY' : 'UNHEALTHY'}`);
+      
+      res.status(statusCode).json(healthStatus);
+      
+    } catch (error) {
+      console.error('❌ LiveKit health check error:', error);
+      res.status(503).json({
+        healthy: false,
+        message: 'Health check failed',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
 
   // Widget API routes (public, no authentication required)
   // Get agent configuration and preferences for widget

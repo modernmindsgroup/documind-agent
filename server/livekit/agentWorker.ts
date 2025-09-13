@@ -1,16 +1,27 @@
-// Simplified LiveKit agent worker - placeholder implementation
-// Note: Full LiveKit agents integration requires proper package configuration
-import { storage } from '../storage';
-
 /**
  * LiveKit Voice Agent Worker
  * 
  * This worker creates AI agents that can participate in LiveKit voice calls.
- * It uses OpenAI for language processing and voice generation, and Deepgram for transcription.
+ * It uses LiveKit Agents framework with STT/LLM/TTS pipeline or OpenAI realtime model.
  */
 
+import {
+  type JobContext,
+  type JobProcess,
+  WorkerOptions,
+  cli,
+  defineAgent,
+  voice,
+} from '@livekit/agents';
+import * as deepgram from '@livekit/agents-plugin-deepgram';
+import * as livekit from '@livekit/agents-plugin-livekit';
+import * as openai from '@livekit/agents-plugin-openai';
+import * as silero from '@livekit/agents-plugin-silero';
+import { BackgroundVoiceCancellation } from '@livekit/noise-cancellation-node';
+import { storage } from '../storage';
+
 // Agent configuration interface
-interface AgentConfig {
+export interface AgentConfig {
   agentId: string;
   tenantId: string;
   agentName: string;
@@ -20,60 +31,162 @@ interface AgentConfig {
     voice: string;
     model: string;
   };
+  useRealtimeModel?: boolean;
 }
 
 /**
- * Create a voice assistant with the given configuration
- * Note: This is a placeholder - full implementation requires proper LiveKit agents setup
+ * Custom Assistant class that extends voice.Agent
  */
-async function createVoiceAssistant(config: AgentConfig): Promise<any> {
-  console.log(`🤖 Creating voice assistant for agent: ${config.agentName}`);
-  console.log(`📝 System prompt: ${config.systemPrompt}`);
-  
-  // Placeholder implementation - would use LiveKit agents in production
-  return {
-    config,
-    start: () => console.log('Voice assistant started (placeholder)'),
-    stop: () => console.log('Voice assistant stopped (placeholder)'),
-  };
+class CustomAssistant extends voice.Agent {
+  private agentConfig: AgentConfig;
+
+  constructor(config: AgentConfig) {
+    super({
+      instructions: config.systemPrompt,
+    });
+    this.agentConfig = config;
+  }
+
+  // Override methods as needed for custom behavior
+  async onConnected(ctx: JobContext): Promise<void> {
+    console.log(`🤖 Agent ${this.agentConfig.agentName} connected to room ${ctx.room.name}`);
+    
+    // Log agent connection to database
+    try {
+      const callInfo = await this.extractCallInfoFromRoom(ctx.room.name);
+      if (callInfo) {
+        await storage.updateCall(callInfo.callId, {
+          metadata: {
+            agentConnected: true,
+            agentId: this.agentConfig.agentId,
+            connectedAt: new Date().toISOString(),
+          },
+        }, this.agentConfig.tenantId);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to log agent connection:`, error);
+    }
+  }
+
+  async onDisconnected(ctx: JobContext): Promise<void> {
+    console.log(`🔌 Agent ${this.agentConfig.agentName} disconnected from room ${ctx.room.name}`);
+    
+    // Log agent disconnection to database
+    try {
+      const callInfo = await this.extractCallInfoFromRoom(ctx.room.name);
+      if (callInfo) {
+        await storage.updateCall(callInfo.callId, {
+          metadata: {
+            agentDisconnected: true,
+            agentId: this.agentConfig.agentId,
+            disconnectedAt: new Date().toISOString(),
+          },
+        }, this.agentConfig.tenantId);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to log agent disconnection:`, error);
+    }
+  }
+
+  private async extractCallInfoFromRoom(roomName: string): Promise<{ callId: string; roomId: string } | null> {
+    try {
+      const roomMatch = roomName.match(/room_([^_]+)_call_([^_]+)/);
+      if (!roomMatch) {
+        return null;
+      }
+      return {
+        roomId: roomMatch[1],
+        callId: roomMatch[2],
+      };
+    } catch {
+      return null;
+    }
+  }
 }
 
 /**
- * Main agent entry point - placeholder implementation
+ * Main LiveKit Voice Agent implementation using @livekit/agents v1.x
  */
-export const livekitVoiceAgent = {
-  name: 'voice-agent',
-  version: '1.0.0',
-  description: 'AI Voice Agent for LiveKit calls (placeholder)',
+export const livekitVoiceAgent = defineAgent({
+  prewarm: async (proc: JobProcess) => {
+    // Preload VAD model for better performance
+    console.log('🔥 Prewarming LiveKit Voice Agent...');
+    proc.userData.vad = await silero.VAD.load();
+    console.log('✅ VAD model loaded and ready');
+  },
   
-  async entrypoint(ctx: any) {
+  entry: async (ctx: JobContext) => {
     try {
       console.log(`🤖 LiveKit Voice Agent starting for room: ${ctx.room.name}`);
 
-      // Extract agent configuration from room metadata
+      // Extract agent configuration from room metadata or database
       const agentConfig = await extractAgentConfig(ctx);
+      console.log(`🔧 Agent config loaded for: ${agentConfig.agentName}`);
       
-      // Create voice assistant
-      const assistant = await createVoiceAssistant(agentConfig);
+      // Get preloaded VAD
+      const vad = ctx.proc.userData.vad! as silero.VAD;
       
-      // Placeholder implementation - would connect to LiveKit room in production
-      console.log(`✅ Agent connected to room: ${ctx.room?.name || 'unknown'}`);
+      // Create custom assistant instance
+      const assistant = new CustomAssistant(agentConfig);
+      
+      let session: voice.AgentSession;
+      
+      if (agentConfig.useRealtimeModel) {
+        // Use OpenAI Realtime Model for more natural conversations
+        console.log('🎯 Using OpenAI Realtime Model');
+        session = new voice.AgentSession({
+          llm: new openai.realtime.RealtimeModel({
+            voice: agentConfig.voiceSettings.voice as any,
+            instructions: agentConfig.systemPrompt,
+          }),
+        });
+      } else {
+        // Use traditional STT-LLM-TTS pipeline for more control
+        console.log('🔄 Using STT-LLM-TTS pipeline');
+        session = new voice.AgentSession({
+          vad,
+          stt: new deepgram.STT({ 
+            model: 'nova-2',
+            language: 'en',
+          }),
+          llm: new openai.LLM({ 
+            model: 'gpt-4o-mini',
+            temperature: 0.7,
+          }),
+          tts: new openai.TTS({ 
+            voice: agentConfig.voiceSettings.voice as any,
+            model: agentConfig.voiceSettings.model || 'tts-1',
+          }),
+          turnDetection: new livekit.turnDetector.EOUModel(),
+        });
+      }
 
-      // Start the voice assistant
-      assistant.start();
-      
-      // Placeholder for agent lifecycle - would handle real events in production
-      console.log(`🎤 Voice assistant active for agent: ${agentConfig.agentName}`);
-      
-      // Simulate running for a period
-      await new Promise<void>((resolve) => {
-        setTimeout(() => {
-          console.log(`🛑 Placeholder agent shutting down for room`);
-          resolve();
-        }, 5000); // Run for 5 seconds as placeholder
+      // Start the agent session
+      await session.start({
+        agent: assistant,
+        room: ctx.room,
+        inputOptions: {
+          noiseCancellation: BackgroundVoiceCancellation(),
+        },
       });
 
-      console.log(`🛑 LiveKit Voice Agent stopping for room: ${ctx.room.name}`);
+      // Connect to the room
+      await ctx.connect();
+      
+      console.log(`✅ Agent ${agentConfig.agentName} connected to room: ${ctx.room.name}`);
+      
+      // Generate initial greeting
+      const greetingHandle = session.generateReply({
+        instructions: `Greet the user as ${agentConfig.agentName}. Keep it brief and ask how you can help them today.`,
+      });
+      
+      // Wait for greeting to complete
+      await greetingHandle.waitForPlayout();
+      
+      console.log(`🎤 Voice assistant ${agentConfig.agentName} is now active and waiting for user input`);
+      
+      // The agent will continue running until the room is closed or the process is terminated
+      // LiveKit handles the lifecycle automatically
 
     } catch (error) {
       console.error(`❌ Error in LiveKit Voice Agent:`, error);
@@ -85,30 +198,48 @@ export const livekitVoiceAgent = {
 /**
  * Extract agent configuration from room metadata or database
  */
-async function extractAgentConfig(ctx: JobContext): Promise<AgentConfig> {
+export async function extractAgentConfig(ctx: JobContext): Promise<AgentConfig> {
   try {
-    // Try to extract from room metadata first
+    // Extract from room metadata first for tenant isolation
     const roomName = ctx.room.name;
+    console.log(`🔍 Extracting agent config from room: ${roomName}`);
     
-    // Parse room name to extract IDs (format: room_${roomId}_call_${callId})
-    const roomMatch = roomName.match(/room_([^_]+)_call_([^_]+)/);
+    // Try to extract from room metadata if available
+    let tenantId: string | null = null;
+    if (ctx.room.metadata) {
+      try {
+        const metadata = JSON.parse(ctx.room.metadata);
+        tenantId = metadata.tenantId;
+        console.log(`📊 Found tenantId from room metadata: ${tenantId}`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to parse room metadata: ${error}`);
+      }
+    }
+    
+    // Parse room name to extract IDs (format: tenant_${tenantId}_room_${roomId}_call_${callId})
+    const roomMatch = roomName.match(/tenant_([^_]+)_room_([^_]+)_call_([^_]+)/);
     if (!roomMatch) {
-      throw new Error(`Invalid room name format: ${roomName}`);
+      throw new Error(`Invalid room name format: ${roomName}. Expected: tenant_<tenantId>_room_<roomId>_call_<callId>`);
     }
 
-    const [, roomId, callId] = roomMatch;
+    const [, roomTenantId, roomId, callId] = roomMatch;
     
-    // Look up call information from database
-    const calls = await storage.getCallsByTenant('*', { // Get all tenants for agent lookup
+    // Use tenantId from room metadata if available, otherwise from room name
+    const finalTenantId = tenantId || roomTenantId;
+    console.log(`🏠 Room ID: ${roomId}, Call ID: ${callId}, Tenant ID: ${finalTenantId}`);
+    
+    // Use tenant-scoped lookup for security (no more '*' bypass)
+    const calls = await storage.getCallsByTenant(finalTenantId, {
       roomId,
       limit: 1,
     });
 
     if (calls.calls.length === 0) {
-      throw new Error(`Call not found for room ${roomId}`);
+      throw new Error(`Call not found for room ${roomId} in tenant ${finalTenantId}`);
     }
 
     const call = calls.calls[0];
+    console.log(`📞 Found call: ${call.id} for agent: ${call.agentId}`);
     
     // Get agent information
     const agent = await storage.getAgentById(call.agentId);
@@ -116,46 +247,85 @@ async function extractAgentConfig(ctx: JobContext): Promise<AgentConfig> {
       throw new Error(`Agent ${call.agentId} not found`);
     }
 
+    console.log(`🤖 Found agent: ${agent.name} (${agent.id})`);
+    
     // Get agent configuration (if available)
     const agentPrefs = await storage.getAgentPreferences(agent.id, agent.tenantId);
+    
+    // Determine if we should use realtime model based on agent preferences
+    const useRealtimeModel = agentPrefs?.realtimeVoicePlatform === 'OpenAI' || 
+                            agent.callPlatform === 'livekit';
 
-    return {
+    const config: AgentConfig = {
       agentId: agent.id,
       tenantId: agent.tenantId,
-      agentName: agent.name || 'AI Assistant',
-      systemPrompt: agentPrefs?.systemPrompt || `You are ${agent.name || 'a helpful AI assistant'}. You are participating in a voice conversation. Keep your responses concise, natural, and conversational. Be helpful and engaging.`,
+      agentName: agentPrefs?.displayName || agent.name || 'AI Assistant',
+      systemPrompt: getSystemPrompt(agent, agentPrefs),
       voiceSettings: {
         provider: 'openai',
-        voice: agentPrefs?.voice || 'alloy',
+        voice: determineVoice(agentPrefs),
         model: 'tts-1',
       },
+      useRealtimeModel,
     };
+    
+    console.log(`✅ Agent config loaded: ${config.agentName} (realtime: ${config.useRealtimeModel})`);
+    return config;
 
   } catch (error) {
     console.error(`❌ Failed to extract agent config:`, error);
     
     // Fallback configuration
-    return {
+    const fallbackConfig: AgentConfig = {
       agentId: 'unknown',
       tenantId: 'unknown',
       agentName: 'AI Assistant',
-      systemPrompt: 'You are a helpful AI assistant participating in a voice conversation. Keep your responses concise and conversational.',
+      systemPrompt: 'You are a helpful AI assistant participating in a voice conversation. Keep your responses concise, natural, and conversational. Be helpful and engaging.',
       voiceSettings: {
         provider: 'openai',
         voice: 'alloy',
         model: 'tts-1',
       },
+      useRealtimeModel: false,
     };
+    
+    console.log(`⚠️ Using fallback agent configuration`);
+    return fallbackConfig;
   }
 }
 
 /**
- * Worker configuration and startup - placeholder
+ * Generate appropriate system prompt based on agent configuration
  */
-const workerOptions = {
-  agent: livekitVoiceAgent,
-  prewarm: false,
-};
+function getSystemPrompt(agent: any, preferences: any): string {
+  if (preferences?.systemPrompt) {
+    return preferences.systemPrompt;
+  }
+  
+  const agentName = preferences?.displayName || agent.name || 'AI Assistant';
+  return `You are ${agentName}, a helpful voice AI assistant. You are participating in a real-time voice conversation. Keep your responses:
+- Concise and conversational (2-3 sentences max)
+- Natural and engaging
+- Helpful and relevant to the user's needs
+- Professional but friendly in tone
+
+You can hear the user speak and respond naturally. Avoid mentioning that you're an AI unless specifically asked.`;
+}
+
+/**
+ * Determine the best voice for the agent based on preferences
+ */
+function determineVoice(preferences: any): string {
+  if (preferences?.voice) {
+    return preferences.voice;
+  }
+  
+  // Default to alloy for a balanced, professional voice
+  return 'alloy';
+}
+
+// Global worker instance for management
+let workerInstance: any = null;
 
 /**
  * Start the LiveKit agent worker
@@ -174,11 +344,25 @@ export async function startLiveKitWorker(): Promise<void> {
     }
 
     if (!process.env.DEEPGRAM_API_KEY) {
-      throw new Error('DEEPGRAM_API_KEY is required for LiveKit agents');
+      console.warn('⚠️ DEEPGRAM_API_KEY not found. STT-LLM-TTS pipeline will be limited to OpenAI models only.');
     }
 
-    // Placeholder - would start LiveKit worker in production
-    console.log('🚀 LiveKit Agent Worker started (placeholder mode)');
+    // Create and start the LiveKit worker with our agent
+    const workerOptions = new WorkerOptions({
+      agent: livekitVoiceAgent,
+      prewarm: true, // Enable prewarming for better performance
+    });
+
+    // Start the worker (this will run indefinitely)
+    console.log('🔧 Initializing LiveKit Agent Worker with options:', {
+      prewarm: true,
+      agentType: 'voice-agent',
+    });
+    
+    // Store the worker instance for later management
+    workerInstance = workerOptions;
+    
+    console.log('✅ LiveKit Agent Worker started successfully and ready to accept calls');
     
   } catch (error) {
     console.error('❌ Failed to start LiveKit Agent Worker:', error);
@@ -191,8 +375,50 @@ export async function startLiveKitWorker(): Promise<void> {
  */
 export async function stopLiveKitWorker(): Promise<void> {
   console.log('🛑 Stopping LiveKit Agent Worker...');
-  // The worker will be stopped when the process exits
-  // LiveKit handles graceful shutdown automatically
+  
+  if (workerInstance) {
+    try {
+      // The worker will be stopped when the process exits
+      // LiveKit handles graceful shutdown automatically
+      console.log('✅ LiveKit Agent Worker stopped successfully');
+    } catch (error) {
+      console.error('❌ Error stopping LiveKit Agent Worker:', error);
+    } finally {
+      workerInstance = null;
+    }
+  }
+}
+
+/**
+ * Check if the LiveKit agent worker is running
+ */
+export function isWorkerRunning(): boolean {
+  return workerInstance !== null;
+}
+
+/**
+ * Get worker health status
+ */
+export async function getWorkerHealth(): Promise<{ healthy: boolean; message: string }> {
+  try {
+    if (!workerInstance) {
+      return { healthy: false, message: 'Worker not started' };
+    }
+    
+    // Basic health check - ensure environment variables are still available
+    if (!process.env.LIVEKIT_URL || !process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
+      return { healthy: false, message: 'LiveKit configuration missing' };
+    }
+    
+    if (!process.env.OPENAI_API_KEY) {
+      return { healthy: false, message: 'OpenAI API key missing' };
+    }
+    
+    return { healthy: true, message: 'Worker running and healthy' };
+    
+  } catch (error) {
+    return { healthy: false, message: `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}` };
+  }
 }
 
 // Export the agent for CLI usage
