@@ -24,7 +24,8 @@ import { z } from "zod";
 import OpenAI from "openai";
 import * as crypto from "crypto";
 import { BillingService, getBillingService } from "./billing";
-import { liveKitService, LiveKitService } from "./livekit";
+import { mediaService, MediaService } from "./livekit";
+import { mediaRoutes } from "./media-routes.js";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -509,6 +510,9 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   // Protected routes (require authentication)
   app.use('/api', authenticateToken);
+
+  // Provider-agnostic media routes
+  app.use('/api/media', mediaRoutes);
 
   // Dashboard metrics
   app.get('/api/dashboard/metrics', requireTenantAccess, async (req: AuthRequest, res) => {
@@ -1328,18 +1332,18 @@ export async function registerRoutes(app: Express): Promise<void> {
       
       // Create corresponding LiveKit room
       try {
-        const liveKitRoomName = LiveKitService.generateRoomName(req.user!.tenantId, room.id);
-        const liveKitRoom = await liveKitService.createRoom({
-          name: liveKitRoomName,
+        const roomName = MediaService.generateRoomName(req.user!.tenantId, room.id);
+        const mediaRoom = await mediaService.createRoom({
+          name: roomName,
           emptyTimeout: 10 * 60, // 10 minutes
           maxParticipants: 20,
           metadata: JSON.stringify({ roomId: room.id, tenantId: req.user!.tenantId }),
         });
         
-        console.log(`Created LiveKit room: ${liveKitRoom.name} for room ${room.id}`);
-      } catch (liveKitError) {
-        console.error('Failed to create LiveKit room:', liveKitError);
-        // Don't fail the request if LiveKit creation fails - log error for monitoring
+        console.log(`Created media room: ${mediaRoom.name} for room ${room.id}`);
+      } catch (mediaError) {
+        console.error('Failed to create media room:', mediaError);
+        // Don't fail the request if media room creation fails - log error for monitoring
       }
       
       res.status(201).json(room);
@@ -1378,14 +1382,14 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(404).json({ error: 'Room not found' });
       }
 
-      // Delete LiveKit room first (disconnects all participants)
+      // Delete media room first (disconnects all participants)
       try {
-        const liveKitRoomName = LiveKitService.generateRoomName(req.user!.tenantId, room.id);
-        await liveKitService.deleteRoom(liveKitRoomName);
-        console.log(`Deleted LiveKit room: ${liveKitRoomName}`);
-      } catch (liveKitError) {
-        console.error('Failed to delete LiveKit room:', liveKitError);
-        // Continue with database deletion even if LiveKit deletion fails
+        const roomName = MediaService.generateRoomName(req.user!.tenantId, room.id);
+        await mediaService.deleteRoom(roomName);
+        console.log(`Deleted media room: ${roomName}`);
+      } catch (mediaError) {
+        console.error('Failed to delete media room:', mediaError);
+        // Continue with database deletion even if media room deletion fails
       }
 
       // Delete room from database (this should cascade delete room agents and calls)
