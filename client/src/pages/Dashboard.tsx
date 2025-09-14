@@ -5,6 +5,7 @@ import { RecentActivity } from "@/components/RecentActivity";
 import { QuickActions } from "@/components/QuickActions";
 import AgentsPage from "@/pages/AgentsPage";
 import WorkflowsPage from "@/pages/WorkflowsPage";
+import WebhooksPage from "@/pages/WebhooksPage";
 import { CallLogs } from "@/components/CallLogs";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
@@ -149,6 +150,8 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
             <p className="text-muted-foreground">Webhook monitoring interface would be implemented here</p>
           </div>
         );
+      case 'webhooks':
+        return <WebhooksPage />;
       case 'knowledge':
         return (
           <div className="space-y-6">
@@ -377,13 +380,6 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
                 )}
               </CardContent>
             </Card>
-          </div>
-        );
-      case 'webhooks':
-        return (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-4">Webhooks</h2>
-            <p className="text-muted-foreground">Webhook configuration interface would be implemented here</p>
           </div>
         );
       case 'api-keys':
