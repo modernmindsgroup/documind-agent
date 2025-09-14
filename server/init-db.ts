@@ -4,14 +4,13 @@ import {
   conversations, messages, callLogs, chatLogs, webhooks, apiKeys
 } from '@shared/schema';
 import { seedDatabase } from './seed';
-import { createTables } from './create-tables';
 
 export async function initializeDatabase() {
   console.log('🔧 Initializing database...');
   
   try {
-    // Create tables first
-    await createTables();
+    // Note: Tables are auto-created by Drizzle schema - no manual table creation needed for PostgreSQL
+    console.log('✅ Database schema loaded via Drizzle');
     
     // Check if database has data
     try {
