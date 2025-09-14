@@ -389,6 +389,34 @@ export const paymentSessions = pgTable("payment_sessions", {
   uniquePaystackReference: uniqueIndex("unique_paystack_reference").on(table.paystackReference),
 }));
 
+// Documents for knowledge base and agent associations
+export const documents = pgTable("documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  storageKey: text("storage_key").notNull().unique(), // Unique key for object storage
+  mimeType: text("mime_type").notNull(),
+  size: integer("size").notNull(), // File size in bytes
+  source: text("source", { enum: ["upload", "import", "sync"] }).notNull().default("upload"),
+  uploadedBy: varchar("uploaded_by").notNull(), // User ID who uploaded
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Agent-Document associations (many-to-many)
+export const agentDocuments = pgTable("agent_documents", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  agentId: varchar("agent_id").notNull(),
+  documentId: varchar("document_id").notNull(),
+  addedBy: varchar("added_by").notNull(), // User ID who added this association
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  // Ensure unique agent-document associations
+  uniqueAgentDocument: uniqueIndex("unique_agent_document").on(table.agentId, table.documentId),
+}));
+
 // Define relations for foreign keys
 export const tenantsRelations = relations(tenants, ({ many }) => ({
   users: many(users),
@@ -408,6 +436,8 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   userCredits: many(userCredits),
   transactions: many(transactions),
   paymentSessions: many(paymentSessions),
+  documents: many(documents),
+  agentDocuments: many(agentDocuments),
 }));
 
 export const usersRelations = relations(users, ({ one, many }) => ({
@@ -419,6 +449,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   userCredits: one(userCredits),
   transactions: many(transactions),
   paymentSessions: many(paymentSessions),
+  uploadedDocuments: many(documents),
+  addedAgentDocuments: many(agentDocuments),
 }));
 
 export const agentsRelations = relations(agents, ({ one, many }) => ({
@@ -438,6 +470,7 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   roomAgents: many(roomAgents),
   calls: many(calls),
   createdRooms: many(rooms),
+  agentDocuments: many(agentDocuments),
 }));
 
 export const workflowsRelations = relations(workflows, ({ one }) => ({
@@ -630,6 +663,37 @@ export const paymentSessionsRelations = relations(paymentSessions, ({ one }) => 
   }),
 }));
 
+export const documentsRelations = relations(documents, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [documents.tenantId],
+    references: [tenants.id],
+  }),
+  uploadedBy: one(users, {
+    fields: [documents.uploadedBy],
+    references: [users.id],
+  }),
+  agentDocuments: many(agentDocuments),
+}));
+
+export const agentDocumentsRelations = relations(agentDocuments, ({ one }) => ({
+  tenant: one(tenants, {
+    fields: [agentDocuments.tenantId],
+    references: [tenants.id],
+  }),
+  agent: one(agents, {
+    fields: [agentDocuments.agentId],
+    references: [agents.id],
+  }),
+  document: one(documents, {
+    fields: [agentDocuments.documentId],
+    references: [documents.id],
+  }),
+  addedBy: one(users, {
+    fields: [agentDocuments.addedBy],
+    references: [users.id],
+  }),
+}));
+
 // Zod schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -778,6 +842,24 @@ export const insertPaymentSessionSchema = createInsertSchema(paymentSessions).pi
   authorizationUrl: true,
 });
 
+export const insertDocumentSchema = createInsertSchema(documents).pick({
+  tenantId: true,
+  name: true,
+  description: true,
+  storageKey: true,
+  mimeType: true,
+  size: true,
+  source: true,
+  uploadedBy: true,
+});
+
+export const insertAgentDocumentSchema = createInsertSchema(agentDocuments).pick({
+  tenantId: true,
+  agentId: true,
+  documentId: true,
+  addedBy: true,
+});
+
 
 
 
@@ -821,6 +903,10 @@ export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 export type Transaction = typeof transactions.$inferSelect;
 export type InsertPaymentSession = z.infer<typeof insertPaymentSessionSchema>;
 export type PaymentSession = typeof paymentSessions.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Document = typeof documents.$inferSelect;
+export type InsertAgentDocument = z.infer<typeof insertAgentDocumentSchema>;
+export type AgentDocument = typeof agentDocuments.$inferSelect;
 
 // Shared API Response Types - prevent type drift between server and client
 export interface DashboardMetrics {

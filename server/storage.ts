@@ -22,6 +22,8 @@ import {
   userCredits,
   transactions,
   paymentSessions,
+  documents,
+  agentDocuments,
   type User, 
   type InsertUser,
   type Tenant,
@@ -58,7 +60,11 @@ import {
   type Transaction,
   type InsertTransaction,
   type PaymentSession,
-  type InsertPaymentSession
+  type InsertPaymentSession,
+  type Document,
+  type InsertDocument,
+  type AgentDocument,
+  type InsertAgentDocument
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, count, sql, gte, lt } from "drizzle-orm";
@@ -272,6 +278,29 @@ export interface IStorage {
   getPaymentSessionByReference(reference: string): Promise<PaymentSession | undefined>;
   createPaymentSession(session: InsertPaymentSession): Promise<PaymentSession>;
   updatePaymentSession(reference: string, updates: Partial<InsertPaymentSession>): Promise<PaymentSession | undefined>;
+
+  // Documents
+  getDocumentsByTenant(tenantId: string, filters?: {
+    search?: string;
+    mimeType?: string;
+    source?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ documents: Document[]; total: number }>;
+  getDocument(id: string, tenantId: string): Promise<Document | undefined>;
+  createDocument(document: InsertDocument): Promise<Document>;
+  updateDocument(id: string, document: Partial<InsertDocument>, tenantId: string): Promise<Document | undefined>;
+  deleteDocument(id: string, tenantId: string): Promise<boolean>;
+
+  // Agent-Document associations
+  getAgentDocuments(agentId: string, tenantId: string, filters?: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ documents: (Document & { addedBy: string; addedAt: string })[]; total: number }>;
+  addAgentDocument(association: InsertAgentDocument): Promise<AgentDocument>;
+  removeAgentDocument(agentId: string, documentId: string, tenantId: string): Promise<boolean>;
+  getDocumentsByAgent(agentId: string, tenantId: string): Promise<Document[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1510,6 +1539,189 @@ export class DatabaseStorage implements IStorage {
       .where(eq(paymentSessions.paystackReference, reference))
       .returning();
     return updated || undefined;
+  }
+
+  // Documents
+  async getDocumentsByTenant(tenantId: string, filters: {
+    search?: string;
+    mimeType?: string;
+    source?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ documents: Document[]; total: number }> {
+    const { search, mimeType, source, limit = 50, offset = 0 } = filters;
+    
+    const conditions = [eq(documents.tenantId, tenantId)];
+    
+    if (search) {
+      conditions.push(
+        or(
+          like(documents.name, `%${search}%`),
+          like(documents.description, `%${search}%`)
+        )!
+      );
+    }
+    
+    if (mimeType) {
+      conditions.push(like(documents.mimeType, `%${mimeType}%`));
+    }
+    
+    if (source) {
+      conditions.push(eq(documents.source, source as any));
+    }
+
+    const whereClause = and(...conditions);
+
+    const [docsList, totalResult] = await Promise.all([
+      db.select().from(documents)
+        .where(whereClause)
+        .orderBy(desc(documents.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(documents).where(whereClause)
+    ]);
+
+    return { documents: docsList, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async getDocument(id: string, tenantId: string): Promise<Document | undefined> {
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.tenantId, tenantId)))
+      .limit(1);
+    return document || undefined;
+  }
+
+  async createDocument(insertDocument: InsertDocument): Promise<Document> {
+    const [document] = await db
+      .insert(documents)
+      .values(insertDocument)
+      .returning();
+    return document;
+  }
+
+  async updateDocument(id: string, updateData: Partial<InsertDocument>, tenantId: string): Promise<Document | undefined> {
+    const [updated] = await db
+      .update(documents)
+      .set({ ...updateData, updatedAt: new Date() })
+      .where(and(eq(documents.id, id), eq(documents.tenantId, tenantId)))
+      .returning();
+    return updated || undefined;
+  }
+
+  async deleteDocument(id: string, tenantId: string): Promise<boolean> {
+    // First remove all agent associations
+    await db
+      .delete(agentDocuments)
+      .where(and(eq(agentDocuments.documentId, id), eq(agentDocuments.tenantId, tenantId)));
+    
+    // Then delete the document
+    const deleted = await db
+      .delete(documents)
+      .where(and(eq(documents.id, id), eq(documents.tenantId, tenantId)));
+    return deleted.rowCount > 0;
+  }
+
+  // Agent-Document associations
+  async getAgentDocuments(agentId: string, tenantId: string, filters: {
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ documents: (Document & { addedBy: string; addedAt: string })[]; total: number }> {
+    const { search, limit = 50, offset = 0 } = filters;
+    
+    let conditions = [
+      eq(agentDocuments.agentId, agentId), 
+      eq(agentDocuments.tenantId, tenantId)
+    ];
+    
+    if (search) {
+      conditions.push(
+        or(
+          like(documents.name, `%${search}%`),
+          like(documents.description, `%${search}%`)
+        )!
+      );
+    }
+
+    const [docsList, totalResult] = await Promise.all([
+      db.select({
+        id: documents.id,
+        tenantId: documents.tenantId,
+        name: documents.name,
+        description: documents.description,
+        storageKey: documents.storageKey,
+        mimeType: documents.mimeType,
+        size: documents.size,
+        source: documents.source,
+        uploadedBy: documents.uploadedBy,
+        createdAt: documents.createdAt,
+        updatedAt: documents.updatedAt,
+        addedBy: agentDocuments.addedBy,
+        addedAt: sql<string>`${agentDocuments.createdAt}::text`,
+      })
+        .from(agentDocuments)
+        .innerJoin(documents, eq(agentDocuments.documentId, documents.id))
+        .where(and(...conditions))
+        .orderBy(desc(agentDocuments.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() })
+        .from(agentDocuments)
+        .innerJoin(documents, eq(agentDocuments.documentId, documents.id))
+        .where(and(...conditions))
+    ]);
+
+    return { 
+      documents: docsList as (Document & { addedBy: string; addedAt: string })[], 
+      total: Number(totalResult[0]?.count || 0) 
+    };
+  }
+
+  async addAgentDocument(association: InsertAgentDocument): Promise<AgentDocument> {
+    const [created] = await db
+      .insert(agentDocuments)
+      .values(association)
+      .returning();
+    return created;
+  }
+
+  async removeAgentDocument(agentId: string, documentId: string, tenantId: string): Promise<boolean> {
+    const deleted = await db
+      .delete(agentDocuments)
+      .where(and(
+        eq(agentDocuments.agentId, agentId),
+        eq(agentDocuments.documentId, documentId),
+        eq(agentDocuments.tenantId, tenantId)
+      ));
+    return deleted.rowCount > 0;
+  }
+
+  async getDocumentsByAgent(agentId: string, tenantId: string): Promise<Document[]> {
+    const result = await db
+      .select({
+        id: documents.id,
+        tenantId: documents.tenantId,
+        name: documents.name,
+        description: documents.description,
+        storageKey: documents.storageKey,
+        mimeType: documents.mimeType,
+        size: documents.size,
+        source: documents.source,
+        uploadedBy: documents.uploadedBy,
+        createdAt: documents.createdAt,
+        updatedAt: documents.updatedAt,
+      })
+      .from(agentDocuments)
+      .innerJoin(documents, eq(agentDocuments.documentId, documents.id))
+      .where(and(
+        eq(agentDocuments.agentId, agentId),
+        eq(agentDocuments.tenantId, tenantId)
+      ))
+      .orderBy(documents.name);
+    
+    return result;
   }
 }
 

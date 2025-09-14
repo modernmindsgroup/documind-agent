@@ -44,7 +44,13 @@ import {
   Check,
   ChevronRight,
   BarChart3,
-  User
+  User,
+  FileText,
+  Upload,
+  Search,
+  X,
+  Download,
+  Trash2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -144,6 +150,24 @@ export default function AgentsPage() {
     enabled: !!selectedAgent?.id,
   });
 
+  // Fetch agent documents
+  const { data: agentDocuments, isLoading: documentsLoading } = useQuery<{
+    documents: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      mimeType: string;
+      size: number;
+      addedBy: string;
+      addedAt: string;
+      storageKey: string;
+    }>;
+    total: number;
+  }>({
+    queryKey: ['/api/agents', selectedAgent?.id, 'documents'],
+    enabled: !!selectedAgent?.id,
+  });
+
   // Voice platform functionality has been removed
 
   // Mutations for agent actions
@@ -203,6 +227,47 @@ export default function AgentsPage() {
       toast({
         title: "Error saving preferences",
         description: "Failed to save preferences. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Document mutations
+  const addDocumentToAgentMutation = useMutation({
+    mutationFn: async ({ agentId, documentId }: { agentId: string; documentId: string }) => {
+      return await apiRequest('POST', `/api/agents/${agentId}/documents`, { documentId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/agents', selectedAgent?.id, 'documents'] });
+      toast({
+        title: "Document added",
+        description: "Document has been successfully added to the agent.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error adding document",
+        description: "Failed to add document to agent. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const removeDocumentFromAgentMutation = useMutation({
+    mutationFn: async ({ agentId, documentId }: { agentId: string; documentId: string }) => {
+      return await apiRequest('DELETE', `/api/agents/${agentId}/documents/${documentId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/agents', selectedAgent?.id, 'documents'] });
+      toast({
+        title: "Document removed",
+        description: "Document has been successfully removed from the agent.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error removing document",
+        description: "Failed to remove document from agent. Please try again.",
         variant: "destructive",
       });
     },
@@ -538,6 +603,15 @@ export default function AgentsPage() {
                   <TabsTrigger value="preferences" className="flex items-center gap-2">
                     <User className="h-4 w-4" />
                     Preferences
+                  </TabsTrigger>
+                  <TabsTrigger value="documents" className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Documents
+                    {agentDocuments?.total ? (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                        {agentDocuments.total}
+                      </Badge>
+                    ) : null}
                   </TabsTrigger>
                   <TabsTrigger value="conversation-history" className="flex items-center gap-2">
                     <MessageCircle className="h-4 w-4" />
@@ -1385,6 +1459,144 @@ export default function AgentsPage() {
                         The widget will automatically initialize when the page loads.
                       </p>
                     </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="documents" className="p-6">
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold">Agent Documents</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Manage documents that this agent can reference during conversations.
+                        </p>
+                      </div>
+                      <Button 
+                        data-testid="button-add-document" 
+                        size="sm" 
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Document
+                      </Button>
+                    </div>
+
+                    {/* Document search */}
+                    <div className="flex items-center gap-4">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          data-testid="input-search-documents"
+                          placeholder="Search documents..."
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Documents list */}
+                    <div className="space-y-4">
+                      {documentsLoading ? (
+                        <div className="space-y-3">
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                              <div className="flex items-center gap-3">
+                                <Skeleton className="h-10 w-10 rounded" />
+                                <div className="space-y-2">
+                                  <Skeleton className="h-4 w-32" />
+                                  <Skeleton className="h-3 w-24" />
+                                </div>
+                              </div>
+                              <Skeleton className="h-8 w-20" />
+                            </div>
+                          ))}
+                        </div>
+                      ) : agentDocuments?.documents?.length ? (
+                        <div className="grid gap-3">
+                          {agentDocuments.documents.map((doc) => (
+                            <Card key={doc.id} className="p-4 hover-elevate" data-testid={`card-document-${doc.id}`}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+                                    <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <h4 className="font-medium text-sm text-foreground truncate" data-testid={`text-document-name-${doc.id}`}>
+                                      {doc.name}
+                                    </h4>
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <span data-testid={`text-document-type-${doc.id}`}>{doc.mimeType}</span>
+                                      <span>•</span>
+                                      <span data-testid={`text-document-size-${doc.id}`}>
+                                        {(doc.size / 1024).toFixed(1)} KB
+                                      </span>
+                                      <span>•</span>
+                                      <span data-testid={`text-document-date-${doc.id}`}>
+                                        Added {new Date(doc.addedAt).toLocaleDateString()}
+                                      </span>
+                                    </div>
+                                    {doc.description && (
+                                      <p className="text-xs text-muted-foreground truncate mt-1" data-testid={`text-document-description-${doc.id}`}>
+                                        {doc.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0"
+                                    data-testid={`button-download-document-${doc.id}`}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => removeDocumentFromAgentMutation.mutate({
+                                      agentId: selectedAgent.id,
+                                      documentId: doc.id
+                                    })}
+                                    disabled={removeDocumentFromAgentMutation.isPending}
+                                    data-testid={`button-remove-document-${doc.id}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed rounded-lg">
+                          <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
+                          <h4 className="font-medium text-foreground mb-2" data-testid="text-no-documents">
+                            No documents added yet
+                          </h4>
+                          <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+                            Add documents to provide your agent with additional knowledge and context for conversations.
+                          </p>
+                          <Button 
+                            size="sm" 
+                            className="flex items-center gap-2"
+                            data-testid="button-add-first-document"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Your First Document
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Document stats */}
+                    {agentDocuments?.total ? (
+                      <div className="flex items-center justify-between text-sm text-muted-foreground pt-4 border-t">
+                        <span data-testid="text-document-count">
+                          {agentDocuments.total} document{agentDocuments.total !== 1 ? 's' : ''} associated with this agent
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
                 </TabsContent>
 

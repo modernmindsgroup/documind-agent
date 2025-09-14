@@ -16,7 +16,9 @@ import {
   insertRoomSchema,
   insertRoomAgentSchema,
   insertCallSchema,
-  updateCallSchema
+  updateCallSchema,
+  insertDocumentSchema,
+  insertAgentDocumentSchema
 } from "@shared/schema";
 import { z } from "zod";
 import OpenAI from "openai";
@@ -1274,6 +1276,212 @@ export async function registerRoutes(app: Express): Promise<void> {
     } catch (error) {
       console.error('Test agent error:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Documents API endpoints
+  
+  // Get documents with search and filtering
+  app.get('/api/documents', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { search, mimeType, source, limit, offset } = req.query;
+      
+      const result = await storage.getDocumentsByTenant(req.user!.tenantId, {
+        search: search as string,
+        mimeType: mimeType as string,
+        source: source as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      res.status(500).json({ error: 'Failed to fetch documents' });
+    }
+  });
+
+  // Get a specific document
+  app.get('/api/documents/:id', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      const document = await storage.getDocument(id, req.user!.tenantId);
+      
+      if (!document) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+      
+      res.json(document);
+    } catch (error) {
+      console.error('Error fetching document:', error);
+      res.status(500).json({ error: 'Failed to fetch document' });
+    }
+  });
+
+  // Create a new document
+  app.post('/api/documents', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertDocumentSchema.parse(req.body);
+      
+      const document = await storage.createDocument({
+        ...validatedData,
+        tenantId: req.user!.tenantId,
+        uploadedBy: req.user!.id,
+      });
+      
+      res.status(201).json(document);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Error creating document:', error);
+      res.status(500).json({ error: 'Failed to create document' });
+    }
+  });
+
+  // Update a document
+  app.patch('/api/documents/:id', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = insertDocumentSchema.partial().parse(req.body);
+      
+      const document = await storage.updateDocument(id, updateData, req.user!.tenantId);
+      
+      if (!document) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+      
+      res.json(document);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Error updating document:', error);
+      res.status(500).json({ error: 'Failed to update document' });
+    }
+  });
+
+  // Delete a document
+  app.delete('/api/documents/:id', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { id } = req.params;
+      
+      const deleted = await storage.deleteDocument(id, req.user!.tenantId);
+      
+      if (!deleted) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+      
+      res.json({ message: 'Document deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      res.status(500).json({ error: 'Failed to delete document' });
+    }
+  });
+
+  // Generate presigned URL for document upload
+  app.post('/api/uploads/documents-url', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { fileName, mimeType } = req.body;
+      
+      if (!fileName || !mimeType) {
+        return res.status(400).json({ error: 'fileName and mimeType are required' });
+      }
+      
+      // Generate unique storage key
+      const fileExtension = fileName.split('.').pop();
+      const storageKey = `documents/${req.user!.tenantId}/${crypto.randomUUID()}.${fileExtension}`;
+      const fullStorageKey = `${process.env.PRIVATE_OBJECT_DIR}/${storageKey}`;
+      
+      // For now, return the storage key directly
+      // In a full implementation, this would generate a presigned URL
+      res.json({
+        uploadUrl: `/api/uploads/direct`, // Placeholder URL for direct upload
+        storageKey: fullStorageKey,
+        fields: {
+          key: fullStorageKey,
+          'Content-Type': mimeType
+        }
+      });
+    } catch (error) {
+      console.error('Error generating upload URL:', error);
+      res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+  });
+
+  // Agent-Document association endpoints
+  
+  // Get documents associated with an agent
+  app.get('/api/agents/:agentId/documents', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { agentId } = req.params;
+      const { search, limit, offset } = req.query;
+      
+      const result = await storage.getAgentDocuments(agentId, req.user!.tenantId, {
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching agent documents:', error);
+      res.status(500).json({ error: 'Failed to fetch agent documents' });
+    }
+  });
+
+  // Add a document to an agent
+  app.post('/api/agents/:agentId/documents', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { agentId } = req.params;
+      const { documentId } = req.body;
+      
+      if (!documentId) {
+        return res.status(400).json({ error: 'documentId is required' });
+      }
+      
+      // Verify the document exists and belongs to the tenant
+      const document = await storage.getDocument(documentId, req.user!.tenantId);
+      if (!document) {
+        return res.status(404).json({ error: 'Document not found' });
+      }
+      
+      // Verify the agent exists and belongs to the tenant
+      const agent = await storage.getAgent(agentId, req.user!.tenantId);
+      if (!agent) {
+        return res.status(404).json({ error: 'Agent not found' });
+      }
+      
+      const association = await storage.addAgentDocument({
+        tenantId: req.user!.tenantId,
+        agentId,
+        documentId,
+        addedBy: req.user!.id,
+      });
+      
+      res.status(201).json(association);
+    } catch (error) {
+      console.error('Error adding document to agent:', error);
+      res.status(500).json({ error: 'Failed to add document to agent' });
+    }
+  });
+
+  // Remove a document from an agent
+  app.delete('/api/agents/:agentId/documents/:documentId', authenticateToken, requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { agentId, documentId } = req.params;
+      
+      const removed = await storage.removeAgentDocument(agentId, documentId, req.user!.tenantId);
+      
+      if (!removed) {
+        return res.status(404).json({ error: 'Association not found' });
+      }
+      
+      res.json({ message: 'Document removed from agent successfully' });
+    } catch (error) {
+      console.error('Error removing document from agent:', error);
+      res.status(500).json({ error: 'Failed to remove document from agent' });
     }
   });
 
