@@ -1,0 +1,144 @@
+# Multi-Tenant
+
+---
+
+### **Goal**
+
+Implement **multi-tenant support** where:
+
+- Every user always belongs to at least one tenant.
+- A default tenant is auto-created at first login (`"<User’s Name>’s Tenant"`).
+- A user can belong to multiple tenants.
+- A **tenant switcher** sets the active tenant.
+- All tenant data is **fully isolated**.
+- The **last active tenant** is stored per user.
+
+---
+
+## 1. **Database Schema**
+
+- **Tenants**
+    
+    ```sql
+    tenants (
+      id BIGINT PRIMARY KEY,
+      name VARCHAR(255),
+      created_at TIMESTAMP,
+      updated_at TIMESTAMP
+    )
+    
+    ```
+    
+- **Tenant Users** (membership + role mapping)
+    
+    ```sql
+    tenant_users (
+      id BIGINT PRIMARY KEY,
+      tenant_id BIGINT NOT NULL,
+      user_id BIGINT NOT NULL,
+      role VARCHAR(50),              -- e.g. 'owner', 'admin', 'member'
+      created_at TIMESTAMP,
+      updated_at TIMESTAMP
+    )
+    
+    ```
+    
+- **Users** (add last active tenant)
+    
+    ```sql
+    users (
+      ...,
+      last_tenant_id BIGINT NULL
+    )
+    
+    ```
+    
+
+---
+
+## 2. **Tenant Lifecycle**
+
+- On **first login** (new user):
+    1. Create a default tenant:
+        - Name = `"<User’s Name>’s Tenant"`.
+    2. Insert into `tenants`.
+    3. Insert into `tenant_users` linking user as `"owner"`.
+    4. Save tenant ID as `users.last_tenant_id`.
+- On **subsequent logins**:
+    - Load `users.last_tenant_id`.
+    - If `last_tenant_id` is NULL → auto-create a tenant.
+
+---
+
+## 3. **Tenant Switching**
+
+- Add a **tenant switcher dropdown** (recommended in **top bar**).
+- Dropdown shows all tenants from `tenant_users` for the logged-in user.
+- Actions:
+    - **Switch Tenant** → updates `users.last_tenant_id` + session `current_tenant_id`.
+    - **Create New Tenant** → new record in `tenants`, insert user as `"owner"` in `tenant_users`, set as active.
+    - **Manage Tenants** → settings screen.
+
+---
+
+## 4. **Tenant Data Isolation**
+
+- Every tenant-specific table includes `tenant_id`.
+
+Example:
+
+```sql
+agents (
+  id BIGINT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  ...
+)
+
+webhooks (
+  id BIGINT PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  ...
+)
+
+```
+
+- All queries must be **scoped by tenant**:
+    
+    ```sql
+    SELECT * FROM agents WHERE tenant_id = :current_tenant_id;
+    
+    ```
+    
+- Middleware:
+    - Resolve `current_tenant_id` from `users.last_tenant_id`.
+    - Pass `current_tenant_id` into all queries automatically.
+
+---
+
+## 5. **UI/UX**
+
+- **Top Bar Tenant Switcher Dropdown**
+    - Displays current tenant name.
+    - Lists all tenants user belongs to.
+    - Options: “Create New Tenant” + “Manage Tenants”.
+- When switching → refresh session + reload data scoped to new tenant.
+
+---
+
+## 6. **Best Practices**
+
+- **Always have a tenant**: A user must never exist without one.
+- **Roles**: Controlled via `tenant_users.role`.
+- **Auditing**: Always log `tenant_id` in events + activity logs.
+- **Future**: Tenant-level billing, invitations, permissions expansion.
+
+---
+
+✅ **Summary for Replit**:
+
+- Add `tenants` + `tenant_users` tables.
+- Add `last_tenant_id` to users.
+- Auto-create a tenant for new users.
+- Implement top bar tenant switcher.
+- All tenant data must be isolated by `tenant_id`.
+- Ensure queries + middleware enforce tenant isolation.
