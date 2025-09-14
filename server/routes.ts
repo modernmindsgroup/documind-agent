@@ -96,7 +96,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const hashedPassword = await hashPassword(validatedData.password);
       const user = await storage.createUser({
         username: validatedData.username,
-        email: validatedData.email,
+        email: validatedData.email.trim().toLowerCase(),
         password: hashedPassword,
         role: validatedData.role || 'tenant_admin',
         tenantId: tenant.id,
@@ -142,8 +142,9 @@ export async function registerRoutes(app: Express): Promise<void> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
+      const normalizedEmail = email.trim().toLowerCase();
       
-      const user = await storage.getUserByEmail(email);
+      const user = await storage.getUserByEmail(normalizedEmail);
       if (!user) {
         return res.status(401).json({ error: 'Invalid credentials' });
       }
@@ -1834,5 +1835,6 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     }
   });
+
 
 }

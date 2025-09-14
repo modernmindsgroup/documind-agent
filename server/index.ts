@@ -68,6 +68,19 @@ app.use((req, res, next) => {
   // Initialize database and seed data
   await initializeDatabase();
   
+  // Add startup diagnostics to see what users exist
+  try {
+    const { db } = await import("./db");
+    const { users } = await import("../shared/schema");
+    const userList = await db.select({ id: users.id, email: users.email, username: users.username }).from(users);
+    console.log(`📊 Database diagnostics: Found ${userList.length} user(s)`);
+    if (userList.length > 0) {
+      console.log('📧 Sample user emails:', userList.slice(0, 3).map(u => u.email));
+    }
+  } catch (diagError) {
+    console.error('⚠️ Database diagnostics failed:', diagError);
+  }
+  
   // Serve static files from public directory (for widget and test files)
   app.use(express.static("public"));
   
