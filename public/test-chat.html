@@ -286,6 +286,7 @@
           <p>Choose widget type and test with your agent configuration</p>
           
           <select id="widgetTypeSelect" class="agent-id-input" style="margin-bottom: 10px;">
+            <option value="chat-voice">Chat + Voice Widget (Voice & Text)</option>
             <option value="chat-only">Text Chat Widget (Text Only)</option>
           </select>
           
@@ -406,9 +407,14 @@
     
     // Widget type configurations
     const widgetTypes = {
+      'chat-voice': {
+        name: 'Chat + Voice Widget',
+        fileName: 'chat-widget.js',
+        description: 'Voice & Text'
+      },
       'chat-only': {
         name: 'Text Chat Widget',
-        fileName: 'chat-widget.js',
+        fileName: 'chat-only-widget.js',
         description: 'Text Only'
       }
     };
@@ -574,10 +580,35 @@
       }
     });
     
-    // Initialize on page load
-    window.addEventListener('load', function() {
+    // Parse URL parameters and pre-fill inputs
+    function initializeFromURL() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const agentId = urlParams.get('agentId');
+      const widgetType = urlParams.get('widgetType');
+      
+      if (agentId) {
+        document.getElementById('agentIdInput').value = agentId;
+      }
+      
+      if (widgetType && widgetTypes[widgetType]) {
+        document.getElementById('widgetTypeSelect').value = widgetType;
+      }
+      
       updateWidgetTypeDisplay();
       updateEmbedCode();
+      
+      // Auto-load widget if both parameters are provided
+      if (agentId && widgetType && widgetTypes[widgetType]) {
+        // Small delay to ensure UI is ready
+        setTimeout(() => {
+          loadWidget();
+        }, 500);
+      }
+    }
+
+    // Initialize on page load
+    window.addEventListener('load', function() {
+      initializeFromURL();
     });
   </script>
 </body>

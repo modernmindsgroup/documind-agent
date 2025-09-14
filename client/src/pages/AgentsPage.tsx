@@ -429,7 +429,7 @@ export default function AgentsPage() {
   const handleTestWidget = (widgetType: string) => {
     if (!selectedAgent) return;
     
-    const testUrl = `/widget-test.html?agentId=${selectedAgent.id}&widgetType=${widgetType}`;
+    const testUrl = `/test-chat.html?agentId=${selectedAgent.id}&widgetType=${widgetType}`;
     window.open(testUrl, '_blank');
   };
 
