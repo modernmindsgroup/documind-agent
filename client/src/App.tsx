@@ -12,6 +12,7 @@ import { AppSidebar } from "./components/AppSidebar";
 import { Dashboard, ViewMode } from "./pages/Dashboard";
 import BillingPage from "./pages/BillingPage";
 import ContactsPage from "./pages/ContactsPage";
+import ApiKeysPage from "./pages/ApiKeysPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
@@ -62,7 +63,7 @@ function Router() {
       <Route path="/api-keys">
         <ProtectedRoute>
           <MainApp>
-            <Dashboard currentView="api-keys" onViewChange={setCurrentView} />
+            <ApiKeysPage />
           </MainApp>
         </ProtectedRoute>
       </Route>
