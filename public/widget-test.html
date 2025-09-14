@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget Test - EchoAgent</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: #1a202c;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            margin: 0;
+            opacity: 0.8;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .widget-info {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .widget-info h2 {
+            margin: 0 0 10px 0;
+            color: #2d3748;
+            font-size: 1.5rem;
+        }
+
+        .widget-info p {
+            margin: 0;
+            color: #4a5568;
+            line-height: 1.6;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #4299e1;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .badge.chat-voice {
+            background: #48bb78;
+        }
+
+        .badge.chat-only {
+            background: #ed8936;
+        }
+
+        .demo-content {
+            margin-top: 40px;
+        }
+
+        .demo-content h3 {
+            color: #2d3748;
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+        }
+
+        .sample-content {
+            background: #edf2f7;
+            border-radius: 8px;
+            padding: 25px;
+            border-left: 4px solid #4299e1;
+        }
+
+        .sample-content h4 {
+            margin: 0 0 15px 0;
+            color: #2b6cb0;
+        }
+
+        .sample-content p {
+            margin: 0 0 15px 0;
+            line-height: 1.6;
+            color: #4a5568;
+        }
+
+        .sample-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .error {
+            background: #fed7d7;
+            color: #c53030;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #e53e3e;
+            margin-bottom: 20px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: #f7fafc;
+            color: #718096;
+            border-top: 1px solid #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Widget Test</h1>
+            <p>Test your EchoAgent chat widget in action</p>
+        </div>
+
+        <div class="content">
+            <div id="widget-info" class="widget-info">
+                <!-- Widget info will be populated by JavaScript -->
+            </div>
+
+            <div class="demo-content">
+                <h3>Sample Page Content</h3>
+                <div class="sample-content">
+                    <h4>Welcome to Our Demo Site</h4>
+                    <p>This is a sample webpage to demonstrate how your chat widget will appear and function when embedded on a real website. The widget should appear in the bottom-right corner of your screen.</p>
+                    <p>Try interacting with the widget to test its functionality, including:</p>
+                    <ul>
+                        <li>Opening and closing the widget</li>
+                        <li>Filling out contact information (if required)</li>
+                        <li>Sending messages and receiving AI responses</li>
+                        <li>Testing voice features (if enabled)</li>
+                    </ul>
+                    <p>The widget is fully functional and connected to your agent configuration, so you can test the complete user experience.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>This is a test environment for your EchoAgent widget</p>
+        </div>
+    </div>
+
+    <script>
+        // Get query parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const agentId = urlParams.get('agentId');
+        const widgetType = urlParams.get('widgetType');
+
+        // Widget type mapping
+        const widgetConfig = {
+            'chat-voice': {
+                name: 'Chat + Voice Widget',
+                description: 'Full-featured widget with both text chat and voice calling capabilities',
+                script: '/chat-widget.js',
+                features: ['Text messaging', 'Voice calls', 'Contact forms'],
+                badgeClass: 'chat-voice'
+            },
+            'chat-only': {
+                name: 'Chat Only Widget',
+                description: 'Text-based chat widget for websites that prefer messaging only',
+                script: '/chat-only-widget.js',
+                features: ['Text messaging only', 'Contact forms', 'Lightweight & fast'],
+                badgeClass: 'chat-only'
+            }
+        };
+
+        // Display widget information
+        function displayWidgetInfo() {
+            const infoContainer = document.getElementById('widget-info');
+            
+            if (!agentId || !widgetType || !widgetConfig[widgetType]) {
+                infoContainer.innerHTML = `
+                    <div class="error">
+                        <strong>Missing Parameters:</strong> This test page requires 'agentId' and 'widgetType' query parameters.
+                        <br><br>
+                        <strong>Expected URL format:</strong> 
+                        <code>widget-test.html?agentId=YOUR_AGENT_ID&widgetType=chat-voice</code>
+                        <br><br>
+                        <strong>Valid widget types:</strong> chat-voice, chat-only
+                    </div>
+                `;
+                return;
+            }
+
+            const config = widgetConfig[widgetType];
+            infoContainer.innerHTML = `
+                <h2>${config.name} <span class="badge ${config.badgeClass}">${widgetType}</span></h2>
+                <p><strong>Agent ID:</strong> ${agentId}</p>
+                <p><strong>Description:</strong> ${config.description}</p>
+                <p><strong>Features:</strong> ${config.features.join(' • ')}</p>
+                <p><strong>Script:</strong> ${config.script}</p>
+            `;
+
+            // Load the widget script
+            loadWidget(config.script, agentId);
+        }
+
+        // Load the widget script dynamically
+        function loadWidget(scriptSrc, agentId) {
+            const script = document.createElement('script');
+            script.src = scriptSrc;
+            script.setAttribute('data-agent-id', agentId);
+            
+            script.onload = function() {
+                console.log('Widget script loaded successfully');
+            };
+            
+            script.onerror = function() {
+                console.error('Failed to load widget script:', scriptSrc);
+                const infoContainer = document.getElementById('widget-info');
+                infoContainer.innerHTML += `
+                    <div class="error" style="margin-top: 20px;">
+                        <strong>Widget Loading Error:</strong> Failed to load the widget script from ${scriptSrc}. 
+                        Please make sure the agent exists and the widget files are accessible.
+                    </div>
+                `;
+            };
+            
+            document.head.appendChild(script);
+        }
+
+        // Initialize the page
+        displayWidgetInfo();
+    </script>
+</body>
+</html>

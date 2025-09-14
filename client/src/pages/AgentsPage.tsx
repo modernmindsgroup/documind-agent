@@ -50,7 +50,8 @@ import {
   Search,
   X,
   Download,
-  Trash2
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -423,6 +424,13 @@ export default function AgentsPage() {
         variant: "destructive",
       });
     }
+  };
+
+  const handleTestWidget = (widgetType: string) => {
+    if (!selectedAgent) return;
+    
+    const testUrl = `/widget-test.html?agentId=${selectedAgent.id}&widgetType=${widgetType}`;
+    window.open(testUrl, '_blank');
   };
 
   const getStatusColor = (isActive: boolean) => {
@@ -1365,20 +1373,31 @@ export default function AgentsPage() {
                         <CardContent className="space-y-4">
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium">Embed Code</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleCopyWidget('chat-voice')}
-                              disabled={copiedWidget === 'chat-voice'}
-                              data-testid="button-copy-chat-voice"
-                            >
-                              {copiedWidget === 'chat-voice' ? (
-                                <Check className="h-4 w-4 mr-2" />
-                              ) : (
-                                <Copy className="h-4 w-4 mr-2" />
-                              )}
-                              {copiedWidget === 'chat-voice' ? "Copied!" : "Copy Code"}
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleTestWidget('chat-voice')}
+                                data-testid="button-test-chat-voice"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Test Embed Widget
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleCopyWidget('chat-voice')}
+                                disabled={copiedWidget === 'chat-voice'}
+                                data-testid="button-copy-chat-voice"
+                              >
+                                {copiedWidget === 'chat-voice' ? (
+                                  <Check className="h-4 w-4 mr-2" />
+                                ) : (
+                                  <Copy className="h-4 w-4 mr-2" />
+                                )}
+                                {copiedWidget === 'chat-voice' ? "Copied!" : "Copy Code"}
+                              </Button>
+                            </div>
                           </div>
                           
                           <div className="relative">
@@ -1416,20 +1435,31 @@ export default function AgentsPage() {
                         <CardContent className="space-y-4">
                           <div className="flex items-center justify-between">
                             <h4 className="font-medium">Embed Code</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handleCopyWidget('chat-only')}
-                              disabled={copiedWidget === 'chat-only'}
-                              data-testid="button-copy-chat-only"
-                            >
-                              {copiedWidget === 'chat-only' ? (
-                                <Check className="h-4 w-4 mr-2" />
-                              ) : (
-                                <Copy className="h-4 w-4 mr-2" />
-                              )}
-                              {copiedWidget === 'chat-only' ? "Copied!" : "Copy Code"}
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleTestWidget('chat-only')}
+                                data-testid="button-test-chat-only"
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Test Embed Widget
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleCopyWidget('chat-only')}
+                                disabled={copiedWidget === 'chat-only'}
+                                data-testid="button-copy-chat-only"
+                              >
+                                {copiedWidget === 'chat-only' ? (
+                                  <Check className="h-4 w-4 mr-2" />
+                                ) : (
+                                  <Copy className="h-4 w-4 mr-2" />
+                                )}
+                                {copiedWidget === 'chat-only' ? "Copied!" : "Copy Code"}
+                              </Button>
+                            </div>
                           </div>
                           
                           <div className="relative">
