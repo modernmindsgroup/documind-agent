@@ -49,11 +49,6 @@ const menuItems: SidebarItem[] = [
     isActive: true,
   },
   {
-    title: "Contacts",
-    url: "/contacts",
-    icon: Users,
-  },
-  {
     title: "Build",
     url: "#",
     icon: Zap,
@@ -91,6 +86,11 @@ const menuItems: SidebarItem[] = [
         icon: KeyRound,
       },
     ],
+  },
+  {
+    title: "Contacts",
+    url: "/contacts",
+    icon: Users,
   },
   {
     title: "Monitor",
