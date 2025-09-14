@@ -391,13 +391,14 @@ export class DatabaseStorage implements IStorage {
       // Create default agent preferences
       await tx.insert(agentPreferences).values({
         agentId: newAgent.id,
-        isContactRequired: true,
+        tenantId: newAgent.tenantId,
+        isContactRequired: 1,
         displayName: newAgent.name,
-        widgetThemeColor: "#2563eb",
+        widgetTheme: JSON.stringify({ color: "#2563eb" }),
       });
 
       // Get first available LLM provider and model for text conversations
-      const [defaultLlmProvider] = await tx.select().from(llmProviders).where(eq(llmProviders.isActive, true)).limit(1);
+      const [defaultLlmProvider] = await tx.select().from(llmProviders).where(eq(llmProviders.isActive, 1)).limit(1);
       const [defaultLlmModel] = await tx.select().from(llmModels).where(eq(llmModels.llmProviderId, defaultLlmProvider?.id || '')).limit(1);
 
       // Create default LLM configuration
@@ -473,7 +474,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(agents)
       .where(and(eq(agents.id, id), eq(agents.tenantId, tenantId)));
-    return (result.rowCount ?? 0) > 0;
+    return (result.changes ?? 0) > 0;
   }
 
   // Workflows
@@ -509,7 +510,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(workflows)
       .where(and(eq(workflows.id, id), eq(workflows.tenantId, tenantId)));
-    return (result.rowCount ?? 0) > 0;
+    return (result.changes ?? 0) > 0;
   }
 
   // Knowledge Base
@@ -538,7 +539,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(knowledgeBase)
       .where(and(eq(knowledgeBase.id, id), eq(knowledgeBase.tenantId, tenantId)));
-    return (result.rowCount ?? 0) > 0;
+    return (result.changes ?? 0) > 0;
   }
 
   // Call Logs
@@ -777,7 +778,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(webhooks)
       .where(and(eq(webhooks.id, id), eq(webhooks.tenantId, tenantId)));
-    return (result.rowCount ?? 0) > 0;
+    return (result.changes ?? 0) > 0;
   }
 
   // API Keys
@@ -806,7 +807,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(apiKeys)
       .where(and(eq(apiKeys.id, id), eq(apiKeys.tenantId, tenantId)));
-    return (result.rowCount ?? 0) > 0;
+    return (result.changes ?? 0) > 0;
   }
 
   // Analytics
@@ -1267,7 +1268,7 @@ export class DatabaseStorage implements IStorage {
       .delete(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)));
     
-    return result.rowCount > 0;
+    return result.changes > 0;
   }
 
   async getContactStats(tenantId: string): Promise<{
@@ -1499,7 +1500,7 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(rooms)
       .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
-    return result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Room Agents
@@ -1532,7 +1533,7 @@ export class DatabaseStorage implements IStorage {
       .delete(roomAgents)
       .where(and(eq(roomAgents.roomId, roomId), eq(roomAgents.agentId, agentId)));
     
-    return result.rowCount > 0;
+    return result.changes > 0;
   }
 
   // Media Tokens
@@ -1574,13 +1575,13 @@ export class DatabaseStorage implements IStorage {
       .update(mediaTokens)
       .set({ 
         isActive: false,
-        updatedAt: new Date()
+        updatedAt: Date.now()
       })
       .where(and(
         eq(mediaTokens.platformToken, platformToken),
         eq(mediaTokens.tenantId, tenantId)
       ));
-    return result.rowCount > 0;
+    return result.changes > 0;
   }
 
   async cleanupExpiredTokens(): Promise<number> {
@@ -1588,7 +1589,7 @@ export class DatabaseStorage implements IStorage {
       .update(mediaTokens)
       .set({ 
         isActive: false,
-        updatedAt: new Date()
+        updatedAt: Date.now()
       })
       .where(and(
         eq(mediaTokens.isActive, true),
@@ -1694,7 +1695,7 @@ export class DatabaseStorage implements IStorage {
       .update(userCredits)
       .set({ 
         balance,
-        updatedAt: new Date()
+        updatedAt: Date.now()
       })
       .where(and(eq(userCredits.userId, userId), eq(userCredits.tenantId, tenantId)))
       .returning();

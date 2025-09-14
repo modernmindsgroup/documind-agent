@@ -12,7 +12,7 @@ export const users = sqliteTable("users", {
   password: text("password").notNull(),
   role: text("role", { enum: ["super_admin", "tenant_admin"] }).notNull().default("tenant_admin"),
   tenantId: text("tenant_id").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Tenants for multi-tenancy
@@ -20,7 +20,7 @@ export const tenants = sqliteTable("tenants", {
   id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   domain: text("domain"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // AI Agents
@@ -31,10 +31,10 @@ export const agents = sqliteTable("agents", {
   description: text("description"),
   type: text("type", { enum: ["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"] }).notNull(),
   callPlatform: text("call_platform", { enum: ["default"] }).default("default"), // Voice functionality removed
-  isActive: integer("is_active", { mode: "boolean" }).default(false),
+  isActive: integer("is_active").default(0),
   editedBy: text("edited_by").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Voice Providers
@@ -42,8 +42,8 @@ export const voiceProviders = sqliteTable("voice_providers", {
   id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Voices
@@ -54,8 +54,8 @@ export const voices = sqliteTable("voices", {
   identifier: text("identifier").notNull(),
   language: text("language"),
   gender: text("gender"),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Voice Models
@@ -64,8 +64,8 @@ export const voiceModels = sqliteTable("voice_models", {
   voiceProviderId: text("voice_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // LLM Providers
@@ -73,8 +73,8 @@ export const llmProviders = sqliteTable("llm_providers", {
   id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // LLM Models
@@ -84,8 +84,8 @@ export const llmModels = sqliteTable("llm_models", {
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
   maxTokens: integer("max_tokens").default(4096),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Transcriber Providers
@@ -93,8 +93,8 @@ export const transcriberProviders = sqliteTable("transcriber_providers", {
   id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Transcriber Languages
@@ -103,8 +103,8 @@ export const transcriberLanguages = sqliteTable("transcriber_languages", {
   transcriberProviderId: text("transcriber_provider_id").notNull(),
   name: text("name").notNull(),
   code: text("code").notNull(),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Transcriber Models
@@ -113,8 +113,8 @@ export const transcriberModels = sqliteTable("transcriber_models", {
   transcriberProviderId: text("transcriber_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // LLM Configurations
@@ -126,8 +126,8 @@ export const llmConfigurations = sqliteTable("llm_configurations", {
   systemPrompt: text("system_prompt").notNull(),
   maxTokens: integer("max_tokens").default(2048),
   temperature: integer("temperature").default(70), // stored as integer (0-200 for 0.0-2.0)
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Transcriber Configurations
@@ -137,8 +137,8 @@ export const transcriberConfigurations = sqliteTable("transcriber_configurations
   transcriberProviderId: text("transcriber_provider_id").notNull(),
   transcriberModelId: text("transcriber_model_id").notNull(),
   transcriberLanguageId: text("transcriber_language_id").notNull(),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Voice Configurations
@@ -148,8 +148,8 @@ export const voiceConfigurations = sqliteTable("voice_configurations", {
   voiceProviderId: text("voice_provider_id").notNull(),
   voiceId: text("voice_id").notNull(),
   voiceModelId: text("voice_model_id").notNull(),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Workflows  
@@ -161,9 +161,9 @@ export const workflows = sqliteTable("workflows", {
   type: text("type", { enum: ["lead_qualification", "scheduler", "survey", "custom"] }).notNull(),
   nodes: text("nodes").notNull(), // JSON as text
   edges: text("edges").notNull(), // JSON as text
-  isActive: integer("is_active", { mode: "boolean" }).default(false),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(0),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Knowledge Base
@@ -176,8 +176,8 @@ export const knowledgeBase = sqliteTable("knowledge_base", {
   url: text("url"),
   parentId: text("parent_id"),
   lastSynced: integer("last_synced"),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Call Logs
@@ -197,7 +197,7 @@ export const callLogs = sqliteTable("call_logs", {
   analysis: text("analysis"),
   reason: text("reason"),
   evaluation: text("evaluation"),
-  startTime: integer("start_time").$defaultFn(() => new Date()),
+  startTime: integer("start_time").$defaultFn(() => Date.now()),
   endTime: integer("end_time"),
   // Additional fields for comprehensive log details
   url: text("url"),
@@ -210,7 +210,7 @@ export const callLogs = sqliteTable("call_logs", {
   responseCode: integer("response_code"),
   responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  startedAt: integer("started_at").$defaultFn(() => Date.now()),
   finishedAt: integer("finished_at"),
 });
 
@@ -226,7 +226,7 @@ export const chatLogs = sqliteTable("chat_logs", {
   messageCount: integer("message_count").default(0),
   type: text("type", { enum: ["widget", "api", "internal"] }).notNull().default("widget"),
   status: text("status", { enum: ["active", "completed", "abandoned"] }).notNull().default("active"),
-  startTime: integer("start_time").$defaultFn(() => new Date()),
+  startTime: integer("start_time").$defaultFn(() => Date.now()),
   endTime: integer("end_time"),
   // Additional fields for comprehensive log details
   url: text("url"),
@@ -239,7 +239,7 @@ export const chatLogs = sqliteTable("chat_logs", {
   responseCode: integer("response_code"),
   responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  startedAt: integer("started_at").$defaultFn(() => Date.now()),
   finishedAt: integer("finished_at"),
 });
 
@@ -257,7 +257,7 @@ export const webhookLogs = sqliteTable("webhook_logs", {
   statusCode: integer("status_code"),
   retryCount: integer("retry_count").default(0),
   duration: integer("duration"), // in seconds
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
   // Additional fields for comprehensive log details
   path: text("path"),
   query: text("query"),
@@ -268,7 +268,7 @@ export const webhookLogs = sqliteTable("webhook_logs", {
   responseCode: integer("response_code"),
   responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  startedAt: integer("started_at").$defaultFn(() => Date.now()),
   finishedAt: integer("finished_at"),
 });
 
@@ -284,10 +284,10 @@ export const webhooks = sqliteTable("webhooks", {
   secret: text("secret"),
   timeout: integer("timeout").default(5000), // Request timeout in milliseconds
   retryLimit: integer("retry_limit").default(7), // Maximum retry attempts
-  isActive: integer("is_active").default(true),
-  disableOnFailure: integer("disable_on_failure").default(false), // Auto-disable after max retries
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  disableOnFailure: integer("disable_on_failure").default(0), // Auto-disable after max retries
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Media Access Tokens
@@ -301,10 +301,10 @@ export const mediaTokens = sqliteTable("media_tokens", {
   metadata: text("metadata"), // Additional token metadata
   permissions: text("permissions"), // Token permissions
   ttl: text("ttl").default("10m"), // Time to live
-  isActive: integer("is_active").default(true),
+  isActive: integer("is_active").default(1),
   expiresAt: integer("expires_at").notNull(),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // API Keys
@@ -314,9 +314,9 @@ export const apiKeys = sqliteTable("api_keys", {
   name: text("name").notNull(),
   keyType: text("key_type").notNull(), // "private" or "public"
   keyValue: text("key_value").notNull(),
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Webhook Deliveries - tracks individual webhook delivery jobs
@@ -330,11 +330,11 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
   attempt: integer("attempt").default(1),
   maxAttempts: integer("max_attempts").default(7),
   payload: text("payload").notNull(),
-  scheduledAt: integer("scheduled_at").$defaultFn(() => new Date()), // When to attempt delivery
+  scheduledAt: integer("scheduled_at").$defaultFn(() => Date.now()), // When to attempt delivery
   nextAttemptAt: integer("next_attempt_at"), // When next retry is scheduled
   completedAt: integer("completed_at"), // When delivery succeeded or permanently failed
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 }, (table) => ({
   // Prevent duplicate in-flight deliveries for the same event
   uniqueWebhookEvent: uniqueIndex("unique_webhook_event_delivery")
@@ -357,7 +357,7 @@ export const webhookDeliveryAttempts = sqliteTable("webhook_delivery_attempts", 
   responseHeaders: text("response_headers"),
   errorMessage: text("error_message"),
   duration: integer("duration"), // Response time in milliseconds
-  attemptedAt: integer("attempted_at").$defaultFn(() => new Date()),
+  attemptedAt: integer("attempted_at").$defaultFn(() => Date.now()),
 }, (table) => ({
   // Prevent duplicate attempt numbers per delivery
   uniqueAttemptPerDelivery: uniqueIndex("unique_attempt_no_per_delivery").on(table.deliveryId, table.attemptNo),
@@ -370,8 +370,8 @@ export const contacts = sqliteTable("contacts", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Agent Preferences (widget and contact requirements)
@@ -379,13 +379,13 @@ export const agentPreferences = sqliteTable("agent_preferences", {
   id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   agentId: text("agent_id").notNull(),
   tenantId: text("tenant_id").notNull(),
-  isContactRequired: integer("is_contact_required", { mode: "integer" }).default(true),
+  isContactRequired: integer("is_contact_required").default(1),
   logo: text("logo"), // URL or base64 image
   displayName: text("display_name"), // Custom name shown in widget
   widgetTheme: text("widget_theme"), // JSON as text
   realtimeVoicePlatform: text("realtime_voice_platform").default("text"), // Voice functionality removed
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Conversations between contacts and agents
@@ -395,9 +395,9 @@ export const conversations = sqliteTable("conversations", {
   agentId: text("agent_id").notNull(),
   contactId: text("contact_id"), // Nullable if contact not required
   title: text("title").notNull(), // Auto-generated or "Untitled"
-  isActive: integer("is_active").default(true),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
-  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
+  isActive: integer("is_active").default(1),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
+  updatedAt: integer("updated_at").$defaultFn(() => Date.now()),
 });
 
 // Individual messages within conversations
@@ -409,7 +409,7 @@ export const messages = sqliteTable("messages", {
   contactId: text("contact_id"), // Nullable if contact not required
   content: text("content").notNull(),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Rooms for voice calls
@@ -419,7 +419,7 @@ export const rooms = sqliteTable("rooms", {
   name: text("name").notNull(),
   createdByAgentId: text("created_by_agent_id"), // Optional - which agent triggered the room creation
   status: text("status", { enum: ["active", "ended"] }).notNull().default("active"),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Room-Agent associations (many-to-many)
@@ -428,7 +428,7 @@ export const roomAgents = sqliteTable("room_agents", {
   roomId: text("room_id").notNull(),
   agentId: text("agent_id").notNull(),
   role: text("role", { enum: ["primary", "assistant"] }).notNull().default("primary"),
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // Voice calls
@@ -441,13 +441,13 @@ export const calls = sqliteTable("calls", {
   direction: text("direction", { enum: ["inbound", "outbound"] }).notNull().default("inbound"),
   status: text("status", { enum: ["initiated", "ringing", "connected", "completed", "failed", "canceled"] }).notNull().default("initiated"),
   callToken: text("call_token").notNull().$default(() => crypto.randomUUID()), // Security token for widget access
-  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  startedAt: integer("started_at").$defaultFn(() => Date.now()),
   endedAt: integer("ended_at"),
   durationSeconds: integer("duration_seconds"),
   recordingUrl: text("recording_url"),
   transcriptUrl: text("transcript_url"),
   metadata: text("metadata"), // Additional call data (transcript summary, etc.)
-  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()),
 });
 
 // User credits and billing
@@ -456,7 +456,7 @@ export const userCredits = sqliteTable("user_credits", {
   userId: text("user_id").notNull(),
   tenantId: text("tenant_id").notNull(),
   balance: real("balance", { precision: 10, scale: 3 }).default("0.000").notNull(),
-  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()).notNull(),
   updatedAt: integer("updated_at").$defaultFn(() => new Date()).notNull(),
 }, (table) => ({
   // Ensure one credit record per user-tenant combination
@@ -474,7 +474,7 @@ export const transactions = sqliteTable("transactions", {
   reference: text("reference"), // Paystack reference for topups
   messageId: text("message_id"), // Message ID for deduction idempotency
   metadata: text("metadata"),
-  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()).notNull(),
 }, (table) => ({
   // Prevent duplicate message charges - unique constraint for deduction transactions with messageId
   uniqueMessageDeduction: uniqueIndex("unique_message_deduction")
@@ -491,7 +491,7 @@ export const paymentSessions = sqliteTable("payment_sessions", {
   paystackReference: text("paystack_reference").notNull(),
   status: text("status", { enum: ["pending", "processing", "completed", "failed"] }).notNull().default("pending"),
   authorizationUrl: text("authorization_url"),
-  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()).notNull(),
   completedAt: integer("completed_at"),
 }, (table) => ({
   // Ensure unique Paystack references to prevent duplicate payment processing
@@ -509,7 +509,7 @@ export const documents = sqliteTable("documents", {
   size: integer("size").notNull(), // File size in bytes
   source: text("source", { enum: ["upload", "import", "sync"] }).notNull().default("upload"),
   uploadedBy: text("uploaded_by").notNull(), // User ID who uploaded
-  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()).notNull(),
   updatedAt: integer("updated_at").$defaultFn(() => new Date()).notNull(),
 });
 
@@ -520,7 +520,7 @@ export const agentDocuments = sqliteTable("agent_documents", {
   agentId: text("agent_id").notNull(),
   documentId: text("document_id").notNull(),
   addedBy: text("added_by").notNull(), // User ID who added this association
-  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  createdAt: integer("created_at").$defaultFn(() => Date.now()).notNull(),
 }, (table) => ({
   // Ensure unique agent-document associations
   uniqueAgentDocument: uniqueIndex("unique_agent_document").on(table.agentId, table.documentId),
@@ -906,7 +906,7 @@ export const insertAgentPreferencesSchema = createInsertSchema(agentPreferences)
   isContactRequired: true,
   logo: true,
   displayName: true,
-  widgetThemeColor: true,
+  widgetTheme: true,
   realtimeVoicePlatform: true,
 });
 
