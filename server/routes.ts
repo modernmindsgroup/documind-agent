@@ -1543,18 +1543,15 @@ export async function registerRoutes(app: Express): Promise<void> {
         return res.status(400).json({ error: 'fileName and mimeType are required' });
       }
       
-      // Generate unique storage key
-      const fileExtension = fileName.split('.').pop();
-      const storageKey = `documents/${req.user!.tenantId}/${crypto.randomUUID()}.${fileExtension}`;
-      const fullStorageKey = `${process.env.PRIVATE_OBJECT_DIR}/${storageKey}`;
+      // Use ObjectStorageService to get presigned URL
+      const { ObjectStorageService } = await import('./objectStorage');
+      const objectStorageService = new ObjectStorageService();
+      const { uploadUrl, storageKey } = await objectStorageService.getDocumentUploadURL(fileName, req.user!.tenantId);
       
-      // For now, return the storage key directly
-      // In a full implementation, this would generate a presigned URL
       res.json({
-        uploadUrl: `/api/uploads/direct`, // Placeholder URL for direct upload
-        storageKey: fullStorageKey,
+        uploadUrl,
+        storageKey,
         fields: {
-          key: fullStorageKey,
           'Content-Type': mimeType
         }
       });

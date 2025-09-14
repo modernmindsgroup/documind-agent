@@ -83,6 +83,19 @@ const createApiKeySchema = z.object({
 
 type CreateApiKeyForm = z.infer<typeof createApiKeySchema>;
 
+// Helper function to generate secure random strings for API keys
+function generateSecureRandomString(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  const array = new Uint8Array(length);
+  crypto.getRandomValues(array);
+  
+  for (let i = 0; i < length; i++) {
+    result += chars[array[i] % chars.length];
+  }
+  return result;
+}
+
 export default function ApiKeysPage() {
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
   const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null);
@@ -96,7 +109,17 @@ export default function ApiKeysPage() {
 
   // Create API key mutation
   const createApiKeyMutation = useMutation({
-    mutationFn: (data: CreateApiKeyForm) => apiRequest('POST', '/api/api-keys', data),
+    mutationFn: (data: CreateApiKeyForm) => {
+      // Generate a secure API key
+      const keyValue = data.keyType === 'private' 
+        ? `sk-${generateSecureRandomString(48)}` // Private key format
+        : `pk-${generateSecureRandomString(48)}`; // Public key format
+      
+      return apiRequest('POST', '/api/api-keys', {
+        ...data,
+        keyValue,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/api-keys'] });
       setCreateModalOpen(false);

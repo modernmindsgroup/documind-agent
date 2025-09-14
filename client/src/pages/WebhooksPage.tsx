@@ -76,7 +76,7 @@ import { formatDistanceToNow } from 'date-fns';
 interface Webhook {
   id: string;
   name: string;
-  eventType: string;
+  eventTypes: string[];
   url: string;
   secret?: string;
   timeout: number;
@@ -110,7 +110,7 @@ interface ApiKey {
 
 const webhookSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  eventType: z.string().min(1, 'Event type is required'),
+  eventTypes: z.array(z.string()).min(1, 'At least one event type is required'),
   url: z.string().url('Please enter a valid URL'),
   secret: z.string().optional(),
   timeout: z.number().min(1000).max(30000),
@@ -175,7 +175,7 @@ export default function WebhooksPage() {
     resolver: zodResolver(webhookSchema),
     defaultValues: {
       name: '',
-      eventType: '',
+      eventTypes: [],
       url: '',
       secret: '',
       timeout: 5000,
@@ -277,7 +277,7 @@ export default function WebhooksPage() {
     const scope = webhook.agentId ? 'agent' : webhook.apiKeyId ? 'apiKey' : 'global';
     form.reset({
       name: webhook.name,
-      eventType: webhook.eventType,
+      eventTypes: webhook.eventTypes,
       url: webhook.url,
       secret: '', // Never prefill secrets for security
       timeout: webhook.timeout,
@@ -425,7 +425,13 @@ export default function WebhooksPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{webhook.eventType}</Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {webhook.eventTypes.map((eventType) => (
+                            <Badge key={eventType} variant="secondary" className="text-xs">
+                              {EVENT_TYPES.find(et => et.value === eventType)?.label || eventType}
+                            </Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="max-w-xs">
@@ -509,24 +515,39 @@ export default function WebhooksPage() {
 
                 <FormField
                   control={form.control}
-                  name="eventType"
+                  name="eventTypes"
                   render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Event Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select event type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {EVENT_TYPES.map((type) => (
-                            <SelectItem key={type.value} value={type.value}>
-                              {type.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <FormItem className="col-span-2">
+                      <FormLabel>Event Types</FormLabel>
+                      <FormDescription>
+                        Select one or more event types for this webhook
+                      </FormDescription>
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        {EVENT_TYPES.map((eventType) => (
+                          <div key={eventType.value} className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id={eventType.value}
+                              checked={field.value?.includes(eventType.value) || false}
+                              onChange={(e) => {
+                                const currentValues = field.value || [];
+                                if (e.target.checked) {
+                                  field.onChange([...currentValues, eventType.value]);
+                                } else {
+                                  field.onChange(currentValues.filter((v) => v !== eventType.value));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <label 
+                              htmlFor={eventType.value}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                            >
+                              {eventType.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

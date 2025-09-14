@@ -821,6 +821,7 @@ export class DatabaseStorage implements IStorage {
     // Use real database data instead of demo data
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstDayTimestamp = Math.floor(firstDayOfMonth.getTime()); // Convert to timestamp for SQLite
 
     const [
       agentsCount,
@@ -836,7 +837,7 @@ export class DatabaseStorage implements IStorage {
       db.select().from(callLogs).where(
         and(
           eq(callLogs.tenantId, tenantId),
-          gte(callLogs.startTime, firstDayOfMonth)
+          gte(callLogs.startTime, firstDayTimestamp)
         )
       )
     ]);
@@ -885,7 +886,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(agents.tenantId, tenantId),
-          gte(agents.createdAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+          gte(agents.createdAt, Date.now() - 30 * 24 * 60 * 60 * 1000)
         )
       )
       .orderBy(desc(agents.createdAt))
@@ -897,7 +898,7 @@ export class DatabaseStorage implements IStorage {
         type: 'agent_created',
         title: `Agent "${agent.name}" created`,
         description: `New agent was added to the system`,
-        timestamp: agent.createdAt?.toISOString() || new Date().toISOString(),
+        timestamp: agent.createdAt ? new Date(agent.createdAt).toISOString() : new Date().toISOString(),
         user: agent.editedBy || 'System'
       });
     });
@@ -913,7 +914,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(workflows.tenantId, tenantId),
-          gte(workflows.updatedAt, new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))
+          gte(workflows.updatedAt, Date.now() - 30 * 24 * 60 * 60 * 1000)
         )
       )
       .orderBy(desc(workflows.updatedAt))
@@ -925,7 +926,7 @@ export class DatabaseStorage implements IStorage {
         type: 'workflow_updated',
         title: `Workflow "${workflow.name}" updated`,
         description: `Workflow configuration was modified`,
-        timestamp: workflow.updatedAt?.toISOString() || new Date().toISOString(),
+        timestamp: workflow.updatedAt ? new Date(workflow.updatedAt).toISOString() : new Date().toISOString(),
         user: 'System'
       });
     });
@@ -945,7 +946,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(callLogs.tenantId, tenantId),
-          gte(callLogs.startTime, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+          gte(callLogs.startTime, Date.now() - 7 * 24 * 60 * 60 * 1000)
         )
       )
       .orderBy(desc(callLogs.startTime))
@@ -957,7 +958,7 @@ export class DatabaseStorage implements IStorage {
         type: 'call_completed',
         title: `Call ${call.status}`,
         description: `${call.duration ? Math.floor(call.duration / 60) : 0} min call completed`,
-        timestamp: call.startTime?.toISOString() || new Date().toISOString(),
+        timestamp: call.startTime ? new Date(call.startTime).toISOString() : new Date().toISOString(),
         user: 'System'
       });
     });
@@ -977,7 +978,7 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(chatLogs.tenantId, tenantId),
-          gte(chatLogs.startTime, new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+          gte(chatLogs.startTime, Date.now() - 7 * 24 * 60 * 60 * 1000)
         )
       )
       .orderBy(desc(chatLogs.startTime))

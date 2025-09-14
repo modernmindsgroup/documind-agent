@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { initializeDatabase } from "./init-db";
 
 const app = express();
 
@@ -11,6 +12,16 @@ app.use('/api/webhooks', express.raw({ type: 'application/json' }));
 // Standard JSON middleware for other routes
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Disable caching for API endpoints to prevent stale data (fix 304 responses)
+app.use('/api', (req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -28,7 +39,18 @@ app.use((req, res, next) => {
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        // Remove sensitive data from logs for security
+        const sanitizedResponse = { ...capturedJsonResponse };
+        if (sanitizedResponse.token) {
+          sanitizedResponse.token = '[REDACTED]';
+        }
+        if (sanitizedResponse.password) {
+          sanitizedResponse.password = '[REDACTED]';
+        }
+        if (sanitizedResponse.apiKey) {
+          sanitizedResponse.apiKey = '[REDACTED]';
+        }
+        logLine += ` :: ${JSON.stringify(sanitizedResponse)}`;
       }
 
       if (logLine.length > 80) {
@@ -43,6 +65,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Initialize database and seed data
+  await initializeDatabase();
+  
   // Serve static files from public directory (for widget and test files)
   app.use(express.static("public"));
   

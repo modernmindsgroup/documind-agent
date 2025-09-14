@@ -1,190 +1,190 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, boolean, integer, decimal, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer, real, blob, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
 
 // Users table for authentication
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   username: text("username").notNull().unique(),
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   role: text("role", { enum: ["super_admin", "tenant_admin"] }).notNull().default("tenant_admin"),
-  tenantId: varchar("tenant_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  tenantId: text("tenant_id").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 // Tenants for multi-tenancy
-export const tenants = pgTable("tenants", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const tenants = sqliteTable("tenants", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   domain: text("domain"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 // AI Agents
-export const agents = pgTable("agents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const agents = sqliteTable("agents", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   type: text("type", { enum: ["conversation_flow", "single_prompt", "multi_prompt", "custom_llm"] }).notNull(),
   callPlatform: text("call_platform", { enum: ["default"] }).default("default"), // Voice functionality removed
-  isActive: boolean("is_active").default(false),
-  editedBy: varchar("edited_by").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: integer("is_active", { mode: "boolean" }).default(false),
+  editedBy: text("edited_by").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 // Voice Providers
-export const voiceProviders = pgTable("voice_providers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const voiceProviders = sqliteTable("voice_providers", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Voices
-export const voices = pgTable("voices", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  voiceProviderId: varchar("voice_provider_id").notNull(),
+export const voices = sqliteTable("voices", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  voiceProviderId: text("voice_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
   language: text("language"),
   gender: text("gender"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Voice Models
-export const voiceModels = pgTable("voice_models", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  voiceProviderId: varchar("voice_provider_id").notNull(),
+export const voiceModels = sqliteTable("voice_models", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  voiceProviderId: text("voice_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // LLM Providers
-export const llmProviders = pgTable("llm_providers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const llmProviders = sqliteTable("llm_providers", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // LLM Models
-export const llmModels = pgTable("llm_models", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  llmProviderId: varchar("llm_provider_id").notNull(),
+export const llmModels = sqliteTable("llm_models", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  llmProviderId: text("llm_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
   maxTokens: integer("max_tokens").default(4096),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Transcriber Providers
-export const transcriberProviders = pgTable("transcriber_providers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+export const transcriberProviders = sqliteTable("transcriber_providers", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
   name: text("name").notNull(),
   apiKey: text("api_key"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Transcriber Languages
-export const transcriberLanguages = pgTable("transcriber_languages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
+export const transcriberLanguages = sqliteTable("transcriber_languages", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  transcriberProviderId: text("transcriber_provider_id").notNull(),
   name: text("name").notNull(),
   code: text("code").notNull(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Transcriber Models
-export const transcriberModels = pgTable("transcriber_models", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
+export const transcriberModels = sqliteTable("transcriber_models", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  transcriberProviderId: text("transcriber_provider_id").notNull(),
   name: text("name").notNull(),
   identifier: text("identifier").notNull(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // LLM Configurations
-export const llmConfigurations = pgTable("llm_configurations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id").notNull(),
-  llmProviderId: varchar("llm_provider_id").notNull(),
-  llmModelId: varchar("llm_model_id").notNull(),
+export const llmConfigurations = sqliteTable("llm_configurations", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  agentId: text("agent_id").notNull(),
+  llmProviderId: text("llm_provider_id").notNull(),
+  llmModelId: text("llm_model_id").notNull(),
   systemPrompt: text("system_prompt").notNull(),
   maxTokens: integer("max_tokens").default(2048),
   temperature: integer("temperature").default(70), // stored as integer (0-200 for 0.0-2.0)
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Transcriber Configurations
-export const transcriberConfigurations = pgTable("transcriber_configurations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id").notNull(),
-  transcriberProviderId: varchar("transcriber_provider_id").notNull(),
-  transcriberModelId: varchar("transcriber_model_id").notNull(),
-  transcriberLanguageId: varchar("transcriber_language_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const transcriberConfigurations = sqliteTable("transcriber_configurations", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  agentId: text("agent_id").notNull(),
+  transcriberProviderId: text("transcriber_provider_id").notNull(),
+  transcriberModelId: text("transcriber_model_id").notNull(),
+  transcriberLanguageId: text("transcriber_language_id").notNull(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Voice Configurations
-export const voiceConfigurations = pgTable("voice_configurations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id").notNull(),
-  voiceProviderId: varchar("voice_provider_id").notNull(),
-  voiceId: varchar("voice_id").notNull(),
-  voiceModelId: varchar("voice_model_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const voiceConfigurations = sqliteTable("voice_configurations", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  agentId: text("agent_id").notNull(),
+  voiceProviderId: text("voice_provider_id").notNull(),
+  voiceId: text("voice_id").notNull(),
+  voiceModelId: text("voice_model_id").notNull(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
-// Workflows
-export const workflows = pgTable("workflows", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+// Workflows  
+export const workflows = sqliteTable("workflows", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   type: text("type", { enum: ["lead_qualification", "scheduler", "survey", "custom"] }).notNull(),
-  nodes: jsonb("nodes").notNull(),
-  edges: jsonb("edges").notNull(),
-  isActive: boolean("is_active").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  nodes: text("nodes").notNull(), // JSON as text
+  edges: text("edges").notNull(), // JSON as text
+  isActive: integer("is_active", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Knowledge Base
-export const knowledgeBase = pgTable("knowledge_base", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const knowledgeBase = sqliteTable("knowledge_base", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   type: text("type", { enum: ["faq", "url", "file", "folder"] }).notNull(),
   content: text("content"),
   url: text("url"),
-  parentId: varchar("parent_id"),
-  lastSynced: timestamp("last_synced"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  parentId: text("parent_id"),
+  lastSynced: integer("last_synced"),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Call Logs
-export const callLogs = pgTable("call_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
+export const callLogs = sqliteTable("call_logs", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
   callId: text("call_id").notNull().unique(),
   fromNumber: text("from_number"),
   toNumber: text("to_number"),
@@ -194,147 +194,147 @@ export const callLogs = pgTable("call_logs", {
   cost: integer("cost"), // in cents
   transcript: text("transcript"),
   recording: text("recording_url"),
-  analysis: jsonb("analysis"),
+  analysis: text("analysis"),
   reason: text("reason"),
   evaluation: text("evaluation"),
-  startTime: timestamp("start_time").defaultNow(),
-  endTime: timestamp("end_time"),
+  startTime: integer("start_time").$defaultFn(() => new Date()),
+  endTime: integer("end_time"),
   // Additional fields for comprehensive log details
   url: text("url"),
   path: text("path"),
   query: text("query"),
   origin: text("origin"),
   method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }),
-  requestHeaders: jsonb("request_headers"),
+  requestHeaders: text("request_headers"),
   requestBody: text("request_body"),
   responseCode: integer("response_code"),
-  responseHeaders: jsonb("response_headers"),
+  responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: timestamp("started_at").defaultNow(),
-  finishedAt: timestamp("finished_at"),
+  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  finishedAt: integer("finished_at"),
 });
 
 // Chat Logs
-export const chatLogs = pgTable("chat_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
+export const chatLogs = sqliteTable("chat_logs", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
   chatId: text("chat_id").notNull().unique(),
   userId: text("user_id"),
-  messages: jsonb("messages").notNull(),
+  messages: text("messages").notNull(),
   duration: integer("duration"), // in seconds
   messageCount: integer("message_count").default(0),
   type: text("type", { enum: ["widget", "api", "internal"] }).notNull().default("widget"),
   status: text("status", { enum: ["active", "completed", "abandoned"] }).notNull().default("active"),
-  startTime: timestamp("start_time").defaultNow(),
-  endTime: timestamp("end_time"),
+  startTime: integer("start_time").$defaultFn(() => new Date()),
+  endTime: integer("end_time"),
   // Additional fields for comprehensive log details
   url: text("url"),
   path: text("path"),
   query: text("query"),
   origin: text("origin"),
   method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }),
-  requestHeaders: jsonb("request_headers"),
+  requestHeaders: text("request_headers"),
   requestBody: text("request_body"),
   responseCode: integer("response_code"),
-  responseHeaders: jsonb("response_headers"),
+  responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: timestamp("started_at").defaultNow(),
-  finishedAt: timestamp("finished_at"),
+  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  finishedAt: integer("finished_at"),
 });
 
 // Webhook Logs - general webhook event logs
-export const webhookLogs = pgTable("webhook_logs", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  webhookId: varchar("webhook_id"), // Optional - link to specific webhook if applicable
+export const webhookLogs = sqliteTable("webhook_logs", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  webhookId: text("webhook_id"), // Optional - link to specific webhook if applicable
   eventType: text("event_type").notNull(),
   type: text("type", { enum: ["outbound", "inbound"] }).notNull().default("outbound"),
   url: text("url").notNull(),
-  payload: jsonb("payload").notNull(),
-  response: jsonb("response"),
+  payload: text("payload").notNull(),
+  response: text("response"),
   status: text("status", { enum: ["success", "failed", "pending"] }).notNull(),
   statusCode: integer("status_code"),
   retryCount: integer("retry_count").default(0),
   duration: integer("duration"), // in seconds
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
   // Additional fields for comprehensive log details
   path: text("path"),
   query: text("query"),
   origin: text("origin"),
   method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }).notNull().default("POST"),
-  requestHeaders: jsonb("request_headers"),
+  requestHeaders: text("request_headers"),
   requestBody: text("request_body"),
   responseCode: integer("response_code"),
-  responseHeaders: jsonb("response_headers"),
+  responseHeaders: text("response_headers"),
   responseBody: text("response_body"),
-  startedAt: timestamp("started_at").defaultNow(),
-  finishedAt: timestamp("finished_at"),
+  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  finishedAt: integer("finished_at"),
 });
 
 // Webhooks Configuration
-export const webhooks = pgTable("webhooks", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id"), // Optional - for agent-specific webhooks
-  apiKeyId: varchar("api_key_id"), // Optional - for API key-specific webhooks
+export const webhooks = sqliteTable("webhooks", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id"), // Optional - for agent-specific webhooks
+  apiKeyId: text("api_key_id"), // Optional - for API key-specific webhooks
   name: text("name").notNull(),
-  eventType: text("event_type").notNull(),
+  eventTypes: text("event_types").notNull(), // Array of event types: ['call.started', 'call.completed']
   url: text("url").notNull(),
   secret: text("secret"),
   timeout: integer("timeout").default(5000), // Request timeout in milliseconds
   retryLimit: integer("retry_limit").default(7), // Maximum retry attempts
-  isActive: boolean("is_active").default(true),
-  disableOnFailure: boolean("disable_on_failure").default(false), // Auto-disable after max retries
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  disableOnFailure: integer("disable_on_failure").default(false), // Auto-disable after max retries
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Media Access Tokens
-export const mediaTokens = pgTable("media_tokens", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  roomId: varchar("room_id").notNull(), // Reference to rooms table
+export const mediaTokens = sqliteTable("media_tokens", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  roomId: text("room_id").notNull(), // Reference to rooms table
   identity: text("identity").notNull(), // Participant identity
   platformToken: text("platform_token").notNull(), // Our token returned to client
   providerToken: text("provider_token").notNull(), // Provider's token (LiveKit, Agora, etc.)
-  metadata: jsonb("metadata"), // Additional token metadata
-  permissions: jsonb("permissions"), // Token permissions
+  metadata: text("metadata"), // Additional token metadata
+  permissions: text("permissions"), // Token permissions
   ttl: text("ttl").default("10m"), // Time to live
-  isActive: boolean("is_active").default(true),
-  expiresAt: timestamp("expires_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  expiresAt: integer("expires_at").notNull(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // API Keys
-export const apiKeys = pgTable("api_keys", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const apiKeys = sqliteTable("api_keys", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
-  provider: text("provider").notNull(), // e.g., "openai", "twilio", "custom"
+  keyType: text("key_type").notNull(), // "private" or "public"
   keyValue: text("key_value").notNull(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Webhook Deliveries - tracks individual webhook delivery jobs
-export const webhookDeliveries = pgTable("webhook_deliveries", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(), // Required for multi-tenant isolation
-  webhookId: varchar("webhook_id").notNull(),
-  eventId: varchar("event_id").notNull(), // Reference to original event (call_id, chat_id, etc.)
+export const webhookDeliveries = sqliteTable("webhook_deliveries", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(), // Required for multi-tenant isolation
+  webhookId: text("webhook_id").notNull(),
+  eventId: text("event_id").notNull(), // Reference to original event (call_id, chat_id, etc.)
   eventType: text("event_type").notNull(), // call.completed, chat.started, etc.
   status: text("status", { enum: ["pending", "success", "failed", "retrying"] }).notNull().default("pending"),
   attempt: integer("attempt").default(1),
   maxAttempts: integer("max_attempts").default(7),
-  payload: jsonb("payload").notNull(),
-  scheduledAt: timestamp("scheduled_at").defaultNow(), // When to attempt delivery
-  nextAttemptAt: timestamp("next_attempt_at"), // When next retry is scheduled
-  completedAt: timestamp("completed_at"), // When delivery succeeded or permanently failed
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  payload: text("payload").notNull(),
+  scheduledAt: integer("scheduled_at").$defaultFn(() => new Date()), // When to attempt delivery
+  nextAttemptAt: integer("next_attempt_at"), // When next retry is scheduled
+  completedAt: integer("completed_at"), // When delivery succeeded or permanently failed
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 }, (table) => ({
   // Prevent duplicate in-flight deliveries for the same event
   uniqueWebhookEvent: uniqueIndex("unique_webhook_event_delivery")
@@ -347,133 +347,134 @@ export const webhookDeliveries = pgTable("webhook_deliveries", {
 }));
 
 // Webhook Delivery Attempts - tracks individual delivery attempts for history
-export const webhookDeliveryAttempts = pgTable("webhook_delivery_attempts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  deliveryId: varchar("delivery_id").notNull(),
+export const webhookDeliveryAttempts = sqliteTable("webhook_delivery_attempts", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  deliveryId: text("delivery_id").notNull(),
   attemptNo: integer("attempt_no").notNull(),
   status: text("status", { enum: ["success", "failed"] }).notNull(),
   responseCode: integer("response_code"),
   responseBody: text("response_body"),
-  responseHeaders: jsonb("response_headers"),
+  responseHeaders: text("response_headers"),
   errorMessage: text("error_message"),
   duration: integer("duration"), // Response time in milliseconds
-  attemptedAt: timestamp("attempted_at").defaultNow(),
+  attemptedAt: integer("attempted_at").$defaultFn(() => new Date()),
 }, (table) => ({
   // Prevent duplicate attempt numbers per delivery
   uniqueAttemptPerDelivery: uniqueIndex("unique_attempt_no_per_delivery").on(table.deliveryId, table.attemptNo),
 }));
 
 // Contacts (guest users who interact with agents via widget)
-export const contacts = pgTable("contacts", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const contacts = sqliteTable("contacts", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   email: text("email").notNull(),
   phone: text("phone"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 // Agent Preferences (widget and contact requirements)
-export const agentPreferences = pgTable("agent_preferences", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  agentId: varchar("agent_id").notNull(),
-  isContactRequired: boolean("is_contact_required").default(true),
+export const agentPreferences = sqliteTable("agent_preferences", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  agentId: text("agent_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  isContactRequired: integer("is_contact_required", { mode: "integer" }).default(true),
   logo: text("logo"), // URL or base64 image
   displayName: text("display_name"), // Custom name shown in widget
-  widgetThemeColor: text("widget_theme_color").default("#2563eb"), // Hex color code
+  widgetTheme: text("widget_theme"), // JSON as text
   realtimeVoicePlatform: text("realtime_voice_platform").default("text"), // Voice functionality removed
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 // Conversations between contacts and agents
-export const conversations = pgTable("conversations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
-  contactId: varchar("contact_id"), // Nullable if contact not required
+export const conversations = sqliteTable("conversations", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  contactId: text("contact_id"), // Nullable if contact not required
   title: text("title").notNull(), // Auto-generated or "Untitled"
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: integer("is_active").default(true),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()),
 });
 
 // Individual messages within conversations
-export const messages = pgTable("messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
-  conversationId: varchar("conversation_id").notNull(),
-  contactId: varchar("contact_id"), // Nullable if contact not required
+export const messages = sqliteTable("messages", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  conversationId: text("conversation_id").notNull(),
+  contactId: text("contact_id"), // Nullable if contact not required
   content: text("content").notNull(),
   role: text("role", { enum: ["user", "assistant", "system"] }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Rooms for voice calls
-export const rooms = pgTable("rooms", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const rooms = sqliteTable("rooms", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
-  createdByAgentId: varchar("created_by_agent_id"), // Optional - which agent triggered the room creation
+  createdByAgentId: text("created_by_agent_id"), // Optional - which agent triggered the room creation
   status: text("status", { enum: ["active", "ended"] }).notNull().default("active"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Room-Agent associations (many-to-many)
-export const roomAgents = pgTable("room_agents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  roomId: varchar("room_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
+export const roomAgents = sqliteTable("room_agents", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  roomId: text("room_id").notNull(),
+  agentId: text("agent_id").notNull(),
   role: text("role", { enum: ["primary", "assistant"] }).notNull().default("primary"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // Voice calls
-export const calls = pgTable("calls", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
-  roomId: varchar("room_id").notNull(),
-  contactId: varchar("contact_id"), // Nullable if contact not required
+export const calls = sqliteTable("calls", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  roomId: text("room_id").notNull(),
+  contactId: text("contact_id"), // Nullable if contact not required
   direction: text("direction", { enum: ["inbound", "outbound"] }).notNull().default("inbound"),
   status: text("status", { enum: ["initiated", "ringing", "connected", "completed", "failed", "canceled"] }).notNull().default("initiated"),
-  callToken: varchar("call_token").notNull().default(sql`gen_random_uuid()`), // Security token for widget access
-  startedAt: timestamp("started_at").defaultNow(),
-  endedAt: timestamp("ended_at"),
+  callToken: text("call_token").notNull().$default(() => crypto.randomUUID()), // Security token for widget access
+  startedAt: integer("started_at").$defaultFn(() => new Date()),
+  endedAt: integer("ended_at"),
   durationSeconds: integer("duration_seconds"),
   recordingUrl: text("recording_url"),
   transcriptUrl: text("transcript_url"),
-  metadata: jsonb("metadata"), // Additional call data (transcript summary, etc.)
-  createdAt: timestamp("created_at").defaultNow(),
+  metadata: text("metadata"), // Additional call data (transcript summary, etc.)
+  createdAt: integer("created_at").$defaultFn(() => new Date()),
 });
 
 // User credits and billing
-export const userCredits = pgTable("user_credits", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  tenantId: varchar("tenant_id").notNull(),
-  balance: decimal("balance", { precision: 10, scale: 3 }).default("0.000").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+export const userCredits = sqliteTable("user_credits", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  balance: real("balance", { precision: 10, scale: 3 }).default("0.000").notNull(),
+  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()).notNull(),
 }, (table) => ({
   // Ensure one credit record per user-tenant combination
   uniqueUserTenant: uniqueIndex("unique_user_tenant_credits").on(table.userId, table.tenantId),
 }));
 
 // Transaction history
-export const transactions = pgTable("transactions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  tenantId: varchar("tenant_id").notNull(),
+export const transactions = sqliteTable("transactions", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
   type: text("type", { enum: ["topup", "deduction", "bonus"] }).notNull(),
-  amount: decimal("amount", { precision: 10, scale: 3 }).notNull(),
+  amount: real("amount", { precision: 10, scale: 3 }).notNull(),
   description: text("description").notNull(),
   reference: text("reference"), // Paystack reference for topups
   messageId: text("message_id"), // Message ID for deduction idempotency
-  metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  metadata: text("metadata"),
+  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
 }, (table) => ({
   // Prevent duplicate message charges - unique constraint for deduction transactions with messageId
   uniqueMessageDeduction: uniqueIndex("unique_message_deduction")
@@ -482,44 +483,44 @@ export const transactions = pgTable("transactions", {
 }));
 
 // Payment sessions
-export const paymentSessions = pgTable("payment_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  tenantId: varchar("tenant_id").notNull(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+export const paymentSessions = sqliteTable("payment_sessions", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  userId: text("user_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  amount: real("amount", { precision: 10, scale: 2 }).notNull(),
   paystackReference: text("paystack_reference").notNull(),
   status: text("status", { enum: ["pending", "processing", "completed", "failed"] }).notNull().default("pending"),
   authorizationUrl: text("authorization_url"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
+  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  completedAt: integer("completed_at"),
 }, (table) => ({
   // Ensure unique Paystack references to prevent duplicate payment processing
   uniquePaystackReference: uniqueIndex("unique_paystack_reference").on(table.paystackReference),
 }));
 
 // Documents for knowledge base and agent associations
-export const documents = pgTable("documents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
+export const documents = sqliteTable("documents", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
   name: text("name").notNull(),
   description: text("description"),
   storageKey: text("storage_key").notNull().unique(), // Unique key for object storage
   mimeType: text("mime_type").notNull(),
   size: integer("size").notNull(), // File size in bytes
   source: text("source", { enum: ["upload", "import", "sync"] }).notNull().default("upload"),
-  uploadedBy: varchar("uploaded_by").notNull(), // User ID who uploaded
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  uploadedBy: text("uploaded_by").notNull(), // User ID who uploaded
+  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
+  updatedAt: integer("updated_at").$defaultFn(() => new Date()).notNull(),
 });
 
 // Agent-Document associations (many-to-many)
-export const agentDocuments = pgTable("agent_documents", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  tenantId: varchar("tenant_id").notNull(),
-  agentId: varchar("agent_id").notNull(),
-  documentId: varchar("document_id").notNull(),
-  addedBy: varchar("added_by").notNull(), // User ID who added this association
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const agentDocuments = sqliteTable("agent_documents", {
+  id: text("id").primaryKey().$default(() => crypto.randomUUID()),
+  tenantId: text("tenant_id").notNull(),
+  agentId: text("agent_id").notNull(),
+  documentId: text("document_id").notNull(),
+  addedBy: text("added_by").notNull(), // User ID who added this association
+  createdAt: integer("created_at").$defaultFn(() => new Date()).notNull(),
 }, (table) => ({
   // Ensure unique agent-document associations
   uniqueAgentDocument: uniqueIndex("unique_agent_document").on(table.agentId, table.documentId),
@@ -881,7 +882,7 @@ export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBase).pick(
 export const insertWebhookSchema = createInsertSchema(webhooks).pick({
   tenantId: true,
   name: true,
-  eventType: true,
+  eventTypes: true,
   url: true,
   secret: true,
 });
@@ -889,7 +890,7 @@ export const insertWebhookSchema = createInsertSchema(webhooks).pick({
 export const insertApiKeySchema = createInsertSchema(apiKeys).pick({
   tenantId: true,
   name: true,
-  provider: true,
+  keyType: true,
   keyValue: true,
 });
 
@@ -1080,7 +1081,7 @@ export interface RecentActivity {
   type: 'agent_created' | 'workflow_updated' | 'call_completed' | 'chat_ended';
   title: string;
   description: string;
-  timestamp: string;
+  integer: string;
   user: string;
 }
 

@@ -49,6 +49,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { DashboardMetrics as DashboardMetricsType, RecentActivity as RecentActivityType } from "@shared/schema";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import type { UploadResult } from "@uppy/core";
 // All mock data imports removed - using real API data
 // TODO: remove mock functionality - replace with actual user avatar
 const avatarImage = "/api/placeholder/32/32";
@@ -67,6 +69,7 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
   // State for Knowledge Base
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [isUploading, setIsUploading] = useState(false);
   
   // Fetch real dashboard metrics
   const { data: metrics, isLoading: metricsLoading, error: metricsError } = useQuery<DashboardMetricsType>({
@@ -79,6 +82,71 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
     queryKey: ['/api/dashboard/recent-activity'],
     enabled: !!user?.tenantId,
   });
+
+  // Document upload functionality using ObjectUploader
+  const handleGetUploadParameters = async () => {
+    // This will be called by ObjectUploader for each file
+    const fileName = 'temp'; // Uppy will handle the actual file name
+    const mimeType = 'application/octet-stream'; // Uppy will handle the actual mime type
+    
+    const urlResponse = await apiRequest('POST', '/api/uploads/documents-url', {
+      fileName,
+      mimeType,
+    });
+    const { uploadUrl } = await urlResponse.json();
+    
+    return {
+      method: 'PUT' as const,
+      url: uploadUrl,
+    };
+  };
+
+  const handleUploadComplete = async (result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+    try {
+      setIsUploading(true);
+      
+      // Process each successfully uploaded file
+      for (const file of result.successful) {
+        const fileName = file.name;
+        const fileSize = file.size;
+        const mimeType = file.type;
+        const uploadUrl = file.uploadURL;
+        
+        // Extract storage key from upload URL
+        // The upload URL contains the storage path
+        const url = new URL(uploadUrl);
+        const storageKey = url.pathname.substring(1); // Remove leading slash
+        
+        // Create document record
+        await apiRequest('POST', '/api/documents', {
+          name: fileName,
+          description: `Uploaded document: ${fileName}`,
+          storageKey,
+          mimeType,
+          size: fileSize,
+          source: 'upload',
+        });
+      }
+
+      toast({
+        title: 'Success',
+        description: `${result.successful.length} document(s) uploaded successfully`,
+      });
+
+      // Refresh documents list
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: error instanceof Error ? error.message : 'Failed to create document records',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Fetch all documents for Knowledge Base
   const { data: allDocuments, isLoading: documentsLoading, refetch: refetchDocuments } = useQuery<{
@@ -162,13 +230,16 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
                   Manage your organization's documents and knowledge assets.
                 </p>
               </div>
-              <Button 
-                data-testid="button-upload-document" 
-                className="flex items-center gap-2"
+              <ObjectUploader
+                maxNumberOfFiles={3}
+                maxFileSize={10485760}
+                onGetUploadParameters={handleGetUploadParameters}
+                onComplete={handleUploadComplete}
+                buttonClassName="flex items-center gap-2"
               >
                 <Upload className="h-4 w-4" />
-                Upload Document
-              </Button>
+                {isUploading ? 'Uploading...' : 'Upload Document'}
+              </ObjectUploader>
             </div>
 
             {/* Search and Filters */}
@@ -368,13 +439,16 @@ export function Dashboard({ currentView, onViewChange }: DashboardProps) {
                       }
                     </p>
                     {!searchQuery && filterType === 'all' && (
-                      <Button 
-                        className="flex items-center gap-2"
-                        data-testid="button-upload-first-doc"
+                      <ObjectUploader
+                        maxNumberOfFiles={3}
+                        maxFileSize={10485760}
+                        onGetUploadParameters={handleGetUploadParameters}
+                        onComplete={handleUploadComplete}
+                        buttonClassName="flex items-center gap-2"
                       >
                         <Upload className="h-4 w-4" />
-                        Upload Your First Document
-                      </Button>
+                        {isUploading ? 'Uploading...' : 'Upload Your First Document'}
+                      </ObjectUploader>
                     )}
                   </div>
                 )}
