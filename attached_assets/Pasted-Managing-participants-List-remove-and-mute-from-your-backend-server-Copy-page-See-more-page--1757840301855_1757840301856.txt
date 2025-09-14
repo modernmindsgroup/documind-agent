@@ -1,0 +1,105 @@
+Managing participants
+List, remove, and mute from your backend server.
+
+Copy page
+See more page options
+Initialize RoomServiceClient
+Participant management is done through the room service. Create a RoomServiceClient:
+
+GoPythonNode.js
+import { Room, RoomServiceClient } from 'livekit-server-sdk';
+
+const livekitHost = 'https://my.livekit.host';
+const roomService = new RoomServiceClient(livekitHost, 'api-key', 'secret-key');
+
+List Participants
+List all the participants in a room.
+
+GoPythonNode.jsLiveKit CLI
+const res = await roomService.listParticipants(roomName);
+
+Get details on a Participant 
+Get detailed information about a participant in a room.
+
+GoPythonNode.jsLiveKit CLI
+const res = await roomService.getParticipant(roomName, identity);
+
+Updating permissions
+You can modify a participant's permissions using the UpdateParticipant API. When there's a change in permissions, connected clients are notified through the ParticipantPermissionChanged event.
+
+This is useful, for example, when transitioning an audience member to a speaker role within a room.
+
+Revoking permissions unpublishes tracks
+When you revoke the CanPublish permission from a participant, all tracks they've published are automatically unpublished.
+
+GoPythonNode.jsLiveKit CLI
+// Promotes an audience member to a speaker
+await roomService.updateParticipant(roomName, identity, undefined, {
+  canPublish: true,
+  canSubscribe: true,
+  canPublishData: true,
+});
+
+// ...and later move them back to audience
+await roomService.updateParticipant(roomName, identity, undefined, {
+  canPublish: false,
+  canSubscribe: true,
+  canPublishData: true,
+});
+
+Updating metadata
+You can modify a Participant's metadata whenever necessary. When metadata is changed, connected clients receive a ParticipantMetadataChanged event.
+
+GoPythonNode.jsLiveKit CLI
+const data = JSON.stringify({
+  some: 'values',
+});
+
+await roomService.updateParticipant(roomName, identity, data);
+
+Move a Participant 
+Move a participant from one room to a different room.
+
+GoPythonNode.jsLiveKit CLI
+await roomService.moveParticipant(roomName, identity, destinationRoom);
+
+Remove a Participant
+RemoveParticipant forcibly disconnects the participant from the room. However, this action doesn't invalidate the participant's token.
+
+To prevent the participant from rejoining the same room, consider the following measures:
+
+Generate access tokens with a short TTL (Time-To-Live).
+Refrain from providing a new token to the same participant via your application's backend.
+GoPythonNode.jsLiveKit CLI
+await roomService.removeParticipant(roomName, identity);
+
+Mute or unmute a Participant's Track
+To mute a particular Track from a Participant, you must first get the TrackSid using the GetParticipant API, then call the MutePublishedTrack API:
+
+GoPythonNode.jsLiveKit CLI
+await roomService.mutePublishedTrack(roomName, identity, 'track_sid', true);
+
+You can also unmute the track by setting muted to false.
+
+Note
+Being remotely unmuted can catch users by surprise, so it's turned off by default.
+
+To allow remote unmute, select the Admins can remotely unmute tracks option in your project settings.
+
+If you're self-hosting, configure room.enable_remote_unmute: true in your config YAML.
+
+On this page
+
+Initialize RoomServiceClient
+List Participants
+Get details on a Participant
+Updating permissions
+Updating metadata
+Move a Participant
+Remove a Participant
+Mute or unmute a Participant's Track
+Was this page helpful?
+
+
+
+Previous
