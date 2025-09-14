@@ -3,7 +3,7 @@ import {
   BarChart3,
   Database,
   Settings,
-  Workflow,
+  Video,
   Webhook,
   KeyRound,
   Phone,
@@ -64,9 +64,9 @@ const menuItems: SidebarItem[] = [
         icon: Bot,
       },
       {
-        title: "Workflows",
-        url: "/workflows",
-        icon: Workflow,
+        title: "Rooms",
+        url: "/rooms",
+        icon: Video,
       },
       {
         title: "Knowledge Base",

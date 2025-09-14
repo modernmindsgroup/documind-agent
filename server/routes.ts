@@ -24,6 +24,7 @@ import { z } from "zod";
 import OpenAI from "openai";
 import * as crypto from "crypto";
 import { BillingService, getBillingService } from "./billing";
+import { liveKitService, LiveKitService } from "./livekit";
 
 // Validation schemas
 const loginSchema = z.object({
@@ -408,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         // Deduct credits for the message processing (will throw error if insufficient)
         const billingService = getBillingService();
         await billingService.deductCredits(
-          tenant.ownerId, 
+          tenant.id, 
           conversation.tenantId, 
           messageTokens, 
           conversationId
@@ -1311,6 +1312,91 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json(room);
     } catch (error) {
       console.error('Get room error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/rooms', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertRoomSchema.parse({
+        ...req.body,
+        tenantId: req.user!.tenantId,
+      });
+      
+      // Create room in database
+      const room = await storage.createRoom(validatedData);
+      
+      // Create corresponding LiveKit room
+      try {
+        const liveKitRoomName = LiveKitService.generateRoomName(req.user!.tenantId, room.id);
+        const liveKitRoom = await liveKitService.createRoom({
+          name: liveKitRoomName,
+          emptyTimeout: 10 * 60, // 10 minutes
+          maxParticipants: 20,
+          metadata: JSON.stringify({ roomId: room.id, tenantId: req.user!.tenantId }),
+        });
+        
+        console.log(`Created LiveKit room: ${liveKitRoom.name} for room ${room.id}`);
+      } catch (liveKitError) {
+        console.error('Failed to create LiveKit room:', liveKitError);
+        // Don't fail the request if LiveKit creation fails - log error for monitoring
+      }
+      
+      res.status(201).json(room);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Create room error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/rooms/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const validatedData = insertRoomSchema.omit({ tenantId: true }).partial().parse(req.body);
+      
+      const room = await storage.updateRoom(req.params.id, validatedData, req.user!.tenantId);
+      if (!room) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+      
+      res.json(room);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error('Update room error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/rooms/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const room = await storage.getRoom(req.params.id, req.user!.tenantId);
+      if (!room) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+
+      // Delete LiveKit room first (disconnects all participants)
+      try {
+        const liveKitRoomName = LiveKitService.generateRoomName(req.user!.tenantId, room.id);
+        await liveKitService.deleteRoom(liveKitRoomName);
+        console.log(`Deleted LiveKit room: ${liveKitRoomName}`);
+      } catch (liveKitError) {
+        console.error('Failed to delete LiveKit room:', liveKitError);
+        // Continue with database deletion even if LiveKit deletion fails
+      }
+
+      // Delete room from database (this should cascade delete room agents and calls)
+      const deleted = await storage.deleteRoom(req.params.id, req.user!.tenantId);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Room not found' });
+      }
+
+      res.json({ message: 'Room deleted successfully' });
+    } catch (error) {
+      console.error('Delete room error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });

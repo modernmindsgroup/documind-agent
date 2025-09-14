@@ -1491,6 +1491,13 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async deleteRoom(id: string, tenantId: string): Promise<boolean> {
+    const result = await db
+      .delete(rooms)
+      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
+    return result.rowCount > 0;
+  }
+
   // Room Agents
   async getRoomAgentsByRoom(roomId: string, tenantId: string): Promise<RoomAgent[]> {
     // First verify the room belongs to the tenant

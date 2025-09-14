@@ -13,6 +13,7 @@ import { Dashboard, ViewMode } from "./pages/Dashboard";
 import BillingPage from "./pages/BillingPage";
 import ContactsPage from "./pages/ContactsPage";
 import ApiKeysPage from "./pages/ApiKeysPage";
+import RoomsPage from "./pages/RoomsPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/not-found";
@@ -39,10 +40,10 @@ function Router() {
           </MainApp>
         </ProtectedRoute>
       </Route>
-      <Route path="/workflows">
+      <Route path="/rooms">
         <ProtectedRoute>
           <MainApp>
-            <Dashboard currentView="workflows" onViewChange={setCurrentView} />
+            <RoomsPage />
           </MainApp>
         </ProtectedRoute>
       </Route>
