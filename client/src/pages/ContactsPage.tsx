@@ -56,7 +56,17 @@ export default function ContactsPage() {
 
   // Fetch contacts data
   const { data: contacts, isLoading: contactsLoading } = useQuery<Contact[]>({
-    queryKey: ['/api/contacts', searchTerm, statusFilter, sourceFilter],
+    queryKey: ['/api/contacts', { search: searchTerm, status: statusFilter, source: sourceFilter }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (searchTerm) params.append('search', searchTerm);
+      if (statusFilter && statusFilter !== 'all') params.append('status', statusFilter);
+      if (sourceFilter && sourceFilter !== 'all') params.append('source', sourceFilter);
+      
+      const response = await fetch(`/api/contacts?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch contacts');
+      return response.json();
+    },
   });
 
   // Fetch summary stats

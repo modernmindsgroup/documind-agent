@@ -126,9 +126,9 @@ export class BillingService {
       amount: Math.round(amount * 100), // Convert to kobo as integer
       currency: 'USD', // CRITICAL: Specify currency explicitly
       metadata: {
-        userId,
-        tenantId,
-        credits: amount
+        userId: userId.toString(),
+        tenantId: tenantId.toString(),
+        credits: amount.toString()
       },
       callback_url: `${process.env.BASE_URL || 'http://localhost:5000'}/api/billing/verify`
     });

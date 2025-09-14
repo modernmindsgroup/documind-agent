@@ -10,7 +10,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 export default function BillingPage() {
-  const [topupAmount, setTopupAmount] = useState('');
+  const [topupAmount, setTopupAmount] = useState('25');
   const { toast } = useToast();
 
   // Handle payment status from URL parameters (when redirected from Paystack)
@@ -236,6 +236,7 @@ export default function BillingPage() {
                   onChange={(e) => setTopupAmount(e.target.value)}
                   min="1"
                   step="1"
+                  className="w-32"
                   data-testid="input-topup-amount"
                 />
                 <Button 
