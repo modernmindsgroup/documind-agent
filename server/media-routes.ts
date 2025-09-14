@@ -7,6 +7,26 @@ import { mediaService, MediaService } from './livekit.js';
 
 const router = Router();
 
+// Health check endpoint
+router.get('/health', async (req, res) => {
+  try {
+    const isHealthy = await mediaService.isHealthy();
+    const providerName = process.env.ACTIVE_MEDIA_PROVIDER || 'livekit';
+    
+    res.json({
+      status: isHealthy ? 'healthy' : 'unhealthy',
+      provider: providerName,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'unhealthy',
+      error: 'Health check failed',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 // Validation schemas
 const updateParticipantSchema = z.object({
   metadata: z.string().optional(),
