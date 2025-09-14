@@ -130,19 +130,37 @@ export interface IStorage {
   getCallLogsByTenant(tenantId: string, filters?: {
     status?: string;
     agentId?: string;
+    type?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ logs: CallLog[]; total: number }>;
+  getCallLog(id: string, tenantId: string): Promise<CallLog | undefined>;
   createCallLog(log: Partial<CallLog>): Promise<CallLog>;
   
   // Chat Logs
   getChatLogsByTenant(tenantId: string, filters?: {
     status?: string;
     agentId?: string;
+    type?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   }): Promise<{ logs: ChatLog[]; total: number }>;
+  getChatLog(id: string, tenantId: string): Promise<ChatLog | undefined>;
   createChatLog(log: Partial<ChatLog>): Promise<ChatLog>;
+  
+  // Webhook Logs
+  getWebhookLogsByTenant(tenantId: string, filters?: {
+    status?: string;
+    eventType?: string;
+    type?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ logs: WebhookLog[]; total: number }>;
+  getWebhookLog(id: string, tenantId: string): Promise<WebhookLog | undefined>;
+  createWebhookLog(log: Partial<WebhookLog>): Promise<WebhookLog>;
   
   // Webhooks
   getWebhooksByTenant(tenantId: string): Promise<Webhook[]>;
@@ -524,10 +542,12 @@ export class DatabaseStorage implements IStorage {
   async getCallLogsByTenant(tenantId: string, filters: {
     status?: string;
     agentId?: string;
+    type?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<{ logs: CallLog[]; total: number }> {
-    const { status, agentId, limit = 50, offset = 0 } = filters;
+    const { status, agentId, type, search, limit = 50, offset = 0 } = filters;
     
     // Build conditions array
     const conditions = [eq(callLogs.tenantId, tenantId)];
@@ -538,6 +558,23 @@ export class DatabaseStorage implements IStorage {
     
     if (agentId) {
       conditions.push(eq(callLogs.agentId, agentId));
+    }
+
+    if (type && type !== 'all') {
+      conditions.push(eq(callLogs.type, type as any));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          like(callLogs.callId, `%${search}%`),
+          like(callLogs.fromNumber, `%${search}%`),
+          like(callLogs.toNumber, `%${search}%`),
+          like(callLogs.url, `%${search}%`),
+          like(callLogs.path, `%${search}%`),
+          like(callLogs.origin, `%${search}%`)
+        )
+      );
     }
 
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
@@ -554,6 +591,15 @@ export class DatabaseStorage implements IStorage {
     return { logs, total: Number(totalResult[0]?.count || 0) };
   }
 
+  async getCallLog(id: string, tenantId: string): Promise<CallLog | undefined> {
+    const result = await db
+      .select()
+      .from(callLogs)
+      .where(and(eq(callLogs.id, id), eq(callLogs.tenantId, tenantId)))
+      .limit(1);
+    return result[0] || undefined;
+  }
+
   async createCallLog(log: Partial<CallLog>): Promise<CallLog> {
     const [newLog] = await db
       .insert(callLogs)
@@ -566,10 +612,12 @@ export class DatabaseStorage implements IStorage {
   async getChatLogsByTenant(tenantId: string, filters: {
     status?: string;
     agentId?: string;
+    type?: string;
+    search?: string;
     limit?: number;
     offset?: number;
   } = {}): Promise<{ logs: ChatLog[]; total: number }> {
-    const { status, agentId, limit = 50, offset = 0 } = filters;
+    const { status, agentId, type, search, limit = 50, offset = 0 } = filters;
     
     // Build conditions array
     const conditions = [eq(chatLogs.tenantId, tenantId)];
@@ -580,6 +628,22 @@ export class DatabaseStorage implements IStorage {
     
     if (agentId) {
       conditions.push(eq(chatLogs.agentId, agentId));
+    }
+
+    if (type && type !== 'all') {
+      conditions.push(eq(chatLogs.type, type as any));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          like(chatLogs.chatId, `%${search}%`),
+          like(chatLogs.userId, `%${search}%`),
+          like(chatLogs.url, `%${search}%`),
+          like(chatLogs.path, `%${search}%`),
+          like(chatLogs.origin, `%${search}%`)
+        )
+      );
     }
 
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
@@ -596,9 +660,86 @@ export class DatabaseStorage implements IStorage {
     return { logs, total: Number(totalResult[0]?.count || 0) };
   }
 
+  async getChatLog(id: string, tenantId: string): Promise<ChatLog | undefined> {
+    const result = await db
+      .select()
+      .from(chatLogs)
+      .where(and(eq(chatLogs.id, id), eq(chatLogs.tenantId, tenantId)))
+      .limit(1);
+    return result[0] || undefined;
+  }
+
   async createChatLog(log: Partial<ChatLog>): Promise<ChatLog> {
     const [newLog] = await db
       .insert(chatLogs)
+      .values(log as any)
+      .returning();
+    return newLog;
+  }
+
+  // Webhook Logs
+  async getWebhookLogsByTenant(tenantId: string, filters: {
+    status?: string;
+    eventType?: string;
+    type?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ logs: WebhookLog[]; total: number }> {
+    const { status, eventType, type, search, limit = 50, offset = 0 } = filters;
+    
+    // Build conditions array
+    const conditions = [eq(webhookLogs.tenantId, tenantId)];
+    
+    if (status && status !== 'all') {
+      conditions.push(eq(webhookLogs.status, status as any));
+    }
+    
+    if (eventType && eventType !== 'all') {
+      conditions.push(eq(webhookLogs.eventType, eventType));
+    }
+
+    if (type && type !== 'all') {
+      conditions.push(eq(webhookLogs.type, type as any));
+    }
+
+    if (search) {
+      conditions.push(
+        or(
+          like(webhookLogs.url, `%${search}%`),
+          like(webhookLogs.eventType, `%${search}%`),
+          like(webhookLogs.path, `%${search}%`),
+          like(webhookLogs.origin, `%${search}%`)
+        )
+      );
+    }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+    const [logs, totalResult] = await Promise.all([
+      db.select().from(webhookLogs)
+        .where(whereClause)
+        .orderBy(desc(webhookLogs.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: count() }).from(webhookLogs).where(whereClause)
+    ]);
+
+    return { logs, total: Number(totalResult[0]?.count || 0) };
+  }
+
+  async getWebhookLog(id: string, tenantId: string): Promise<WebhookLog | undefined> {
+    const result = await db
+      .select()
+      .from(webhookLogs)
+      .where(and(eq(webhookLogs.id, id), eq(webhookLogs.tenantId, tenantId)))
+      .limit(1);
+    return result[0] || undefined;
+  }
+
+  async createWebhookLog(log: Partial<WebhookLog>): Promise<WebhookLog> {
+    const [newLog] = await db
+      .insert(webhookLogs)
       .values(log as any)
       .returning();
     return newLog;

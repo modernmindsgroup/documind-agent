@@ -1,0 +1,75 @@
+🔹 Workflow Considerations
+
+Two Scopes of Webhooks
+
+Global scope (from Sidebar → Webhooks menu):
+
+These are system-wide and apply to all agents unless an agent-level override exists.
+
+Example use case: Logging events to a central monitoring/analytics service.
+
+Agent scope (on the Agent’s Webhooks tab):
+
+More fine-grained, specific to one agent.
+
+Allows users to configure multiple endpoints for different downstream services (CRM, Slack, custom integrations).
+
+Example use case: Agent A sends conversation events to Slack, Agent B sends to Zapier.
+
+✅ Having both makes sense — gives flexibility while preserving global defaults.
+
+Database Schema Recommendation
+
+You’ll need a webhooks table that can handle both global and agent-specific scopes.
+
+Suggested schema:
+
+webhooks (
+  id BIGINT PRIMARY KEY,
+  agent_id BIGINT NULL,        -- NULL means global
+  api_key_id BIGINT NULL,      -- for authentication / ownership
+  url TEXT NOT NULL,           
+  event_types JSONB,           -- store subscribed event types
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+)
+
+
+agent_id:
+If NULL → global webhook.
+If not NULL → agent-level webhook.
+
+api_key_id: Useful if users may have multiple API keys and want to scope ownership/usage.
+
+event_types: Lets you support selective subscriptions (e.g. ["conversation.created", "message.sent"]).
+
+Resolution Logic
+
+When an event occurs:
+
+Fire all global webhooks.
+
+Fire agent-specific webhooks if they exist for that agent.
+
+If both exist → fire both (don’t replace global unless you explicitly want an override mechanism).
+
+⚡ Clear rule: Global webhooks are always fired unless explicitly disabled.
+
+UI/UX Suggestion
+
+Sidebar → Webhooks: Manage global webhooks (system-wide).
+
+Agent → Webhooks Tab: Manage agent-specific ones (multiple endpoints).
+
+Advanced Option (future): Allow a toggle on agent-level screen → “Disable Global Webhooks for this Agent” if some teams don’t want duplication.
+
+🔹 My Advice
+
+Yes, the workflow is solid.
+
+Keep schema flexible (nullable agent_id covers both cases cleanly).
+
+Don’t overcomplicate with api_key_id unless you truly need per-key ownership — but if you’ll later have multiple API keys per org, keep it.
+
+Make sure to log webhook deliveries and retries — debugging bad endpoints is where most webhook systems fail.

@@ -188,7 +188,7 @@ export const callLogs = pgTable("call_logs", {
   callId: text("call_id").notNull().unique(),
   fromNumber: text("from_number"),
   toNumber: text("to_number"),
-  type: text("type", { enum: ["inbound", "outbound"] }).notNull(),
+  type: text("type", { enum: ["inbound", "outbound", "api", "webhook"] }).notNull(),
   status: text("status", { enum: ["completed", "failed", "transferred", "no_answer"] }).notNull(),
   duration: integer("duration"), // in seconds
   cost: integer("cost"), // in cents
@@ -199,6 +199,19 @@ export const callLogs = pgTable("call_logs", {
   evaluation: text("evaluation"),
   startTime: timestamp("start_time").defaultNow(),
   endTime: timestamp("end_time"),
+  // Additional fields for comprehensive log details
+  url: text("url"),
+  path: text("path"),
+  query: text("query"),
+  origin: text("origin"),
+  method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }),
+  requestHeaders: jsonb("request_headers"),
+  requestBody: text("request_body"),
+  responseCode: integer("response_code"),
+  responseHeaders: jsonb("response_headers"),
+  responseBody: text("response_body"),
+  startedAt: timestamp("started_at").defaultNow(),
+  finishedAt: timestamp("finished_at"),
 });
 
 // Chat Logs
@@ -211,9 +224,23 @@ export const chatLogs = pgTable("chat_logs", {
   messages: jsonb("messages").notNull(),
   duration: integer("duration"), // in seconds
   messageCount: integer("message_count").default(0),
+  type: text("type", { enum: ["widget", "api", "internal"] }).notNull().default("widget"),
   status: text("status", { enum: ["active", "completed", "abandoned"] }).notNull().default("active"),
   startTime: timestamp("start_time").defaultNow(),
   endTime: timestamp("end_time"),
+  // Additional fields for comprehensive log details
+  url: text("url"),
+  path: text("path"),
+  query: text("query"),
+  origin: text("origin"),
+  method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }),
+  requestHeaders: jsonb("request_headers"),
+  requestBody: text("request_body"),
+  responseCode: integer("response_code"),
+  responseHeaders: jsonb("response_headers"),
+  responseBody: text("response_body"),
+  startedAt: timestamp("started_at").defaultNow(),
+  finishedAt: timestamp("finished_at"),
 });
 
 // Webhook Logs
@@ -221,13 +248,27 @@ export const webhookLogs = pgTable("webhook_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
   eventType: text("event_type").notNull(),
+  type: text("type", { enum: ["outbound", "inbound"] }).notNull().default("outbound"),
   url: text("url").notNull(),
   payload: jsonb("payload").notNull(),
   response: jsonb("response"),
   status: text("status", { enum: ["success", "failed", "pending"] }).notNull(),
   statusCode: integer("status_code"),
   retryCount: integer("retry_count").default(0),
+  duration: integer("duration"), // in seconds
   createdAt: timestamp("created_at").defaultNow(),
+  // Additional fields for comprehensive log details
+  path: text("path"),
+  query: text("query"),
+  origin: text("origin"),
+  method: text("method", { enum: ["GET", "POST", "PUT", "PATCH", "DELETE"] }).notNull().default("POST"),
+  requestHeaders: jsonb("request_headers"),
+  requestBody: text("request_body"),
+  responseCode: integer("response_code"),
+  responseHeaders: jsonb("response_headers"),
+  responseBody: text("response_body"),
+  startedAt: timestamp("started_at").defaultNow(),
+  finishedAt: timestamp("finished_at"),
 });
 
 // Webhooks Configuration

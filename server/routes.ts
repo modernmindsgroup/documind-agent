@@ -838,10 +838,12 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Call Logs routes
   app.get('/api/call-logs', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
-      const { status, agentId, limit, offset } = req.query;
+      const { status, agentId, type, search, limit, offset } = req.query;
       const filters = {
         status: status as string,
         agentId: agentId as string,
+        type: type as string,
+        search: search as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
       };
@@ -854,13 +856,28 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
+  app.get('/api/call-logs/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const log = await storage.getCallLog(req.params.id, req.user!.tenantId);
+      if (!log) {
+        return res.status(404).json({ error: 'Call log not found' });
+      }
+      res.json(log);
+    } catch (error) {
+      console.error('Get call log error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // Chat Logs routes
   app.get('/api/chat-logs', requireTenantAccess, async (req: AuthRequest, res) => {
     try {
-      const { status, agentId, limit, offset } = req.query;
+      const { status, agentId, type, search, limit, offset } = req.query;
       const filters = {
         status: status as string,
         agentId: agentId as string,
+        type: type as string,
+        search: search as string,
         limit: limit ? parseInt(limit as string) : undefined,
         offset: offset ? parseInt(offset as string) : undefined,
       };
@@ -869,6 +886,53 @@ export async function registerRoutes(app: Express): Promise<void> {
       res.json(result);
     } catch (error) {
       console.error('Get chat logs error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/chat-logs/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const log = await storage.getChatLog(req.params.id, req.user!.tenantId);
+      if (!log) {
+        return res.status(404).json({ error: 'Chat log not found' });
+      }
+      res.json(log);
+    } catch (error) {
+      console.error('Get chat log error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Webhook Logs routes
+  app.get('/api/webhook-logs', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const { status, eventType, type, search, limit, offset } = req.query;
+      const filters = {
+        status: status as string,
+        eventType: eventType as string,
+        type: type as string,
+        search: search as string,
+        limit: limit ? parseInt(limit as string) : undefined,
+        offset: offset ? parseInt(offset as string) : undefined,
+      };
+      
+      const result = await storage.getWebhookLogsByTenant(req.user!.tenantId, filters);
+      res.json(result);
+    } catch (error) {
+      console.error('Get webhook logs error:', error);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/webhook-logs/:id', requireTenantAccess, async (req: AuthRequest, res) => {
+    try {
+      const log = await storage.getWebhookLog(req.params.id, req.user!.tenantId);
+      if (!log) {
+        return res.status(404).json({ error: 'Webhook log not found' });
+      }
+      res.json(log);
+    } catch (error) {
+      console.error('Get webhook log error:', error);
       res.status(500).json({ error: 'Internal server error' });
     }
   });
