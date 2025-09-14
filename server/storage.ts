@@ -565,16 +565,17 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (search) {
-      conditions.push(
-        or(
-          like(callLogs.callId, `%${search}%`),
-          like(callLogs.fromNumber, `%${search}%`),
-          like(callLogs.toNumber, `%${search}%`),
-          like(callLogs.url, `%${search}%`),
-          like(callLogs.path, `%${search}%`),
-          like(callLogs.origin, `%${search}%`)
-        )
-      );
+      const searchConditions = [
+        like(callLogs.callId, `%${search}%`),
+        like(callLogs.fromNumber, `%${search}%`),
+        like(callLogs.toNumber, `%${search}%`),
+        like(callLogs.url, `%${search}%`),
+        like(callLogs.path, `%${search}%`),
+        like(callLogs.origin, `%${search}%`)
+      ].filter(Boolean);
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions));
+      }
     }
 
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
@@ -635,15 +636,16 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (search) {
-      conditions.push(
-        or(
-          like(chatLogs.chatId, `%${search}%`),
-          like(chatLogs.userId, `%${search}%`),
-          like(chatLogs.url, `%${search}%`),
-          like(chatLogs.path, `%${search}%`),
-          like(chatLogs.origin, `%${search}%`)
-        )
-      );
+      const searchConditions = [
+        like(chatLogs.chatId, `%${search}%`),
+        like(chatLogs.userId, `%${search}%`),
+        like(chatLogs.url, `%${search}%`),
+        like(chatLogs.path, `%${search}%`),
+        like(chatLogs.origin, `%${search}%`)
+      ].filter(Boolean);
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions));
+      }
     }
 
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
@@ -704,14 +706,15 @@ export class DatabaseStorage implements IStorage {
     }
 
     if (search) {
-      conditions.push(
-        or(
-          like(webhookLogs.url, `%${search}%`),
-          like(webhookLogs.eventType, `%${search}%`),
-          like(webhookLogs.path, `%${search}%`),
-          like(webhookLogs.origin, `%${search}%`)
-        )
-      );
+      const searchConditions = [
+        like(webhookLogs.url, `%${search}%`),
+        like(webhookLogs.eventType, `%${search}%`),
+        like(webhookLogs.path, `%${search}%`),
+        like(webhookLogs.origin, `%${search}%`)
+      ].filter(Boolean);
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions));
+      }
     }
 
     const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
@@ -1205,21 +1208,28 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   } = {}): Promise<Contact[]> {
-    let query = db
-      .select()
-      .from(contacts)
-      .where(eq(contacts.tenantId, tenantId));
+    // Build conditions array
+    const conditions = [eq(contacts.tenantId, tenantId)];
 
     // Add search filter
     if (filters.search) {
-      query = query.where(
-        or(
-          like(contacts.name, `%${filters.search}%`),
-          like(contacts.email, `%${filters.search}%`),
-          like(contacts.phone, `%${filters.search}%`)
-        )
-      );
+      const searchConditions = [
+        like(contacts.name, `%${filters.search}%`),
+        like(contacts.email, `%${filters.search}%`),
+        like(contacts.phone, `%${filters.search}%`)
+      ].filter(Boolean);
+      if (searchConditions.length > 0) {
+        conditions.push(or(...searchConditions));
+      }
     }
+
+    const whereClause = conditions.length === 1 ? conditions[0] : and(...conditions);
+
+    let query = db
+      .select()
+      .from(contacts)
+      .where(whereClause)
+      .orderBy(desc(contacts.createdAt));
 
     // Add pagination
     if (filters.limit) {
@@ -1228,9 +1238,6 @@ export class DatabaseStorage implements IStorage {
     if (filters.offset) {
       query = query.offset(filters.offset);
     }
-
-    // Order by creation date
-    query = query.orderBy(desc(contacts.createdAt));
 
     const contactsList = await query;
     return contactsList;
@@ -1256,7 +1263,7 @@ export class DatabaseStorage implements IStorage {
       .delete(contacts)
       .where(and(eq(contacts.id, id), eq(contacts.tenantId, tenantId)));
     
-    return result.count > 0;
+    return result.rowCount > 0;
   }
 
   async getContactStats(tenantId: string): Promise<{
