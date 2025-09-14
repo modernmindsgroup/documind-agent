@@ -290,6 +290,23 @@ export const webhooks = pgTable("webhooks", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Media Access Tokens
+export const mediaTokens = pgTable("media_tokens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(),
+  roomId: varchar("room_id").notNull(), // Reference to rooms table
+  identity: text("identity").notNull(), // Participant identity
+  platformToken: text("platform_token").notNull(), // Our token returned to client
+  providerToken: text("provider_token").notNull(), // Provider's token (LiveKit, Agora, etc.)
+  metadata: jsonb("metadata"), // Additional token metadata
+  permissions: jsonb("permissions"), // Token permissions
+  ttl: text("ttl").default("10m"), // Time to live
+  isActive: boolean("is_active").default(true),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // API Keys
 export const apiKeys = pgTable("api_keys", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -915,6 +932,18 @@ export const insertRoomSchema = createInsertSchema(rooms).pick({
   status: true,
 });
 
+export const insertMediaTokenSchema = createInsertSchema(mediaTokens).pick({
+  tenantId: true,
+  roomId: true,
+  identity: true,
+  platformToken: true,
+  providerToken: true,
+  metadata: true,
+  permissions: true,
+  ttl: true,
+  expiresAt: true,
+});
+
 export const insertRoomAgentSchema = createInsertSchema(roomAgents).pick({
   roomId: true,
   agentId: true,
@@ -1019,6 +1048,8 @@ export type InsertMessage = z.infer<typeof insertMessageSchema>;
 export type Message = typeof messages.$inferSelect;
 export type InsertRoom = z.infer<typeof insertRoomSchema>;
 export type Room = typeof rooms.$inferSelect;
+export type InsertMediaToken = z.infer<typeof insertMediaTokenSchema>;
+export type MediaToken = typeof mediaTokens.$inferSelect;
 export type InsertRoomAgent = z.infer<typeof insertRoomAgentSchema>;
 export type RoomAgent = typeof roomAgents.$inferSelect;
 export type InsertCall = z.infer<typeof insertCallSchema>;

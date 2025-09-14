@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireTenantAccess, AuthRequest } from './auth.js';
 import { storage } from './storage.js';
 import { mediaService, MediaService } from './livekit.js';
+import * as crypto from 'crypto';
 
 const router = Router();
 
@@ -193,7 +194,8 @@ router.post('/rooms/:id/token', requireTenantAccess, async (req: AuthRequest, re
     const validatedData = generateTokenSchema.parse(req.body);
     const roomName = MediaService.generateRoomName(req.user!.tenantId, room.id);
     
-    const token = await mediaService.generateToken({
+    // Generate provider token (LiveKit, Agora, etc.)
+    const providerToken = await mediaService.generateToken({
       identity: validatedData.identity,
       room: roomName,
       ttl: validatedData.ttl,
@@ -201,7 +203,34 @@ router.post('/rooms/:id/token', requireTenantAccess, async (req: AuthRequest, re
       permissions: validatedData.permissions,
     });
 
-    res.json({ token });
+    // Generate platform token (UUID)
+    const platformToken = crypto.randomUUID();
+
+    // Calculate expiration time
+    const ttlMs = parseTTL(validatedData.ttl);
+    const expiresAt = new Date(Date.now() + ttlMs);
+
+    // Store both tokens in database
+    const tokenRecord = await storage.createMediaToken({
+      tenantId: req.user!.tenantId,
+      roomId: room.id,
+      identity: validatedData.identity,
+      platformToken,
+      providerToken,
+      metadata: validatedData.metadata ? JSON.stringify(validatedData.metadata) : null,
+      permissions: JSON.stringify(validatedData.permissions),
+      ttl: validatedData.ttl,
+      expiresAt,
+    });
+
+    // Return only the platform token to client
+    res.json({ 
+      token: platformToken,
+      identity: validatedData.identity,
+      room: room.name, // Return room name, not provider room name
+      expiresAt: expiresAt.toISOString(),
+      permissions: validatedData.permissions
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
@@ -210,5 +239,22 @@ router.post('/rooms/:id/token', requireTenantAccess, async (req: AuthRequest, re
     res.status(500).json({ error: 'Failed to generate token' });
   }
 });
+
+// Helper function to parse TTL string to milliseconds
+function parseTTL(ttl: string): number {
+  const match = ttl.match(/^(\d+)([smhd]?)$/);
+  if (!match) return 10 * 60 * 1000; // Default 10 minutes
+  
+  const value = parseInt(match[1]);
+  const unit = match[2] || 's';
+  
+  switch (unit) {
+    case 's': return value * 1000;
+    case 'm': return value * 60 * 1000;
+    case 'h': return value * 60 * 60 * 1000;
+    case 'd': return value * 24 * 60 * 60 * 1000;
+    default: return value * 1000;
+  }
+}
 
 export { router as mediaRoutes };

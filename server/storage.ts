@@ -24,6 +24,7 @@ import {
   paymentSessions,
   documents,
   agentDocuments,
+  mediaTokens,
   type User, 
   type InsertUser,
   type Tenant,
@@ -64,7 +65,9 @@ import {
   type Document,
   type InsertDocument,
   type AgentDocument,
-  type InsertAgentDocument
+  type InsertAgentDocument,
+  type MediaToken,
+  type InsertMediaToken
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, or, like, count, sql, gte, lt } from "drizzle-orm";
@@ -1529,6 +1532,68 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(roomAgents.roomId, roomId), eq(roomAgents.agentId, agentId)));
     
     return result.rowCount > 0;
+  }
+
+  // Media Tokens
+  async createMediaToken(token: InsertMediaToken): Promise<MediaToken> {
+    const [newToken] = await db
+      .insert(mediaTokens)
+      .values(token)
+      .returning();
+    return newToken;
+  }
+
+  async getMediaToken(platformToken: string, tenantId: string): Promise<MediaToken | undefined> {
+    const [token] = await db
+      .select()
+      .from(mediaTokens)
+      .where(and(
+        eq(mediaTokens.platformToken, platformToken),
+        eq(mediaTokens.tenantId, tenantId),
+        eq(mediaTokens.isActive, true)
+      ))
+      .limit(1);
+    return token || undefined;
+  }
+
+  async getMediaTokensByRoom(roomId: string, tenantId: string): Promise<MediaToken[]> {
+    return await db
+      .select()
+      .from(mediaTokens)
+      .where(and(
+        eq(mediaTokens.roomId, roomId),
+        eq(mediaTokens.tenantId, tenantId),
+        eq(mediaTokens.isActive, true)
+      ))
+      .orderBy(desc(mediaTokens.createdAt));
+  }
+
+  async deactivateMediaToken(platformToken: string, tenantId: string): Promise<boolean> {
+    const result = await db
+      .update(mediaTokens)
+      .set({ 
+        isActive: false,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(mediaTokens.platformToken, platformToken),
+        eq(mediaTokens.tenantId, tenantId)
+      ));
+    return result.rowCount > 0;
+  }
+
+  async cleanupExpiredTokens(): Promise<number> {
+    const result = await db
+      .update(mediaTokens)
+      .set({ 
+        isActive: false,
+        updatedAt: new Date()
+      })
+      .where(and(
+        eq(mediaTokens.isActive, true),
+        lt(mediaTokens.expiresAt, new Date())
+      ));
+    return result.rowCount || 0;
   }
 
   // Calls
