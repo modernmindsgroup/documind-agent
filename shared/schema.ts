@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, boolean, integer, decimal, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, boolean, integer, decimal, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { relations } from "drizzle-orm";
 import { z } from "zod";
@@ -243,10 +243,11 @@ export const chatLogs = pgTable("chat_logs", {
   finishedAt: timestamp("finished_at"),
 });
 
-// Webhook Logs
+// Webhook Logs - general webhook event logs
 export const webhookLogs = pgTable("webhook_logs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
+  webhookId: varchar("webhook_id"), // Optional - link to specific webhook if applicable
   eventType: text("event_type").notNull(),
   type: text("type", { enum: ["outbound", "inbound"] }).notNull().default("outbound"),
   url: text("url").notNull(),
@@ -275,11 +276,16 @@ export const webhookLogs = pgTable("webhook_logs", {
 export const webhooks = pgTable("webhooks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull(),
+  agentId: varchar("agent_id"), // Optional - for agent-specific webhooks
+  apiKeyId: varchar("api_key_id"), // Optional - for API key-specific webhooks
   name: text("name").notNull(),
   eventType: text("event_type").notNull(),
   url: text("url").notNull(),
   secret: text("secret"),
+  timeout: integer("timeout").default(5000), // Request timeout in milliseconds
+  retryLimit: integer("retry_limit").default(7), // Maximum retry attempts
   isActive: boolean("is_active").default(true),
+  disableOnFailure: boolean("disable_on_failure").default(false), // Auto-disable after max retries
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -295,6 +301,50 @@ export const apiKeys = pgTable("api_keys", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Webhook Deliveries - tracks individual webhook delivery jobs
+export const webhookDeliveries = pgTable("webhook_deliveries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull(), // Required for multi-tenant isolation
+  webhookId: varchar("webhook_id").notNull(),
+  eventId: varchar("event_id").notNull(), // Reference to original event (call_id, chat_id, etc.)
+  eventType: text("event_type").notNull(), // call.completed, chat.started, etc.
+  status: text("status", { enum: ["pending", "success", "failed", "retrying"] }).notNull().default("pending"),
+  attempt: integer("attempt").default(1),
+  maxAttempts: integer("max_attempts").default(7),
+  payload: jsonb("payload").notNull(),
+  scheduledAt: timestamp("scheduled_at").defaultNow(), // When to attempt delivery
+  nextAttemptAt: timestamp("next_attempt_at"), // When next retry is scheduled
+  completedAt: timestamp("completed_at"), // When delivery succeeded or permanently failed
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Prevent duplicate in-flight deliveries for the same event
+  uniqueWebhookEvent: uniqueIndex("unique_webhook_event_delivery")
+    .on(table.webhookId, table.eventId)
+    .where(sql`${table.status} IN ('pending', 'retrying')`),
+  // Non-unique indexes for efficient queue processing
+  statusNextAttemptIndex: index("webhook_deliveries_status_next_attempt").on(table.status, table.nextAttemptAt),
+  tenantStatusIndex: index("webhook_deliveries_tenant_status").on(table.tenantId, table.status, table.nextAttemptAt),
+  webhookStatusIndex: index("webhook_deliveries_webhook_status_next").on(table.webhookId, table.status, table.nextAttemptAt),
+}));
+
+// Webhook Delivery Attempts - tracks individual delivery attempts for history
+export const webhookDeliveryAttempts = pgTable("webhook_delivery_attempts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  deliveryId: varchar("delivery_id").notNull(),
+  attemptNo: integer("attempt_no").notNull(),
+  status: text("status", { enum: ["success", "failed"] }).notNull(),
+  responseCode: integer("response_code"),
+  responseBody: text("response_body"),
+  responseHeaders: jsonb("response_headers"),
+  errorMessage: text("error_message"),
+  duration: integer("duration"), // Response time in milliseconds
+  attemptedAt: timestamp("attempted_at").defaultNow(),
+}, (table) => ({
+  // Prevent duplicate attempt numbers per delivery
+  uniqueAttemptPerDelivery: uniqueIndex("unique_attempt_no_per_delivery").on(table.deliveryId, table.attemptNo),
+}));
 
 // Contacts (guest users who interact with agents via widget)
 export const contacts = pgTable("contacts", {
@@ -468,6 +518,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   chatLogs: many(chatLogs),
   webhooks: many(webhooks),
   webhookLogs: many(webhookLogs),
+  webhookDeliveries: many(webhookDeliveries),
   apiKeys: many(apiKeys),
   contacts: many(contacts),
   conversations: many(conversations),
@@ -512,6 +563,7 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
   calls: many(calls),
   createdRooms: many(rooms),
   agentDocuments: many(agentDocuments),
+  webhooks: many(webhooks),
 }));
 
 export const workflowsRelations = relations(workflows, ({ one }) => ({
@@ -560,7 +612,35 @@ export const webhooksRelations = relations(webhooks, ({ one, many }) => ({
     fields: [webhooks.tenantId],
     references: [tenants.id],
   }),
+  agent: one(agents, {
+    fields: [webhooks.agentId],
+    references: [agents.id],
+  }),
+  apiKey: one(apiKeys, {
+    fields: [webhooks.apiKeyId],
+    references: [apiKeys.id],
+  }),
   logs: many(webhookLogs),
+  deliveries: many(webhookDeliveries),
+}));
+
+export const webhookDeliveriesRelations = relations(webhookDeliveries, ({ one, many }) => ({
+  tenant: one(tenants, {
+    fields: [webhookDeliveries.tenantId],
+    references: [tenants.id],
+  }),
+  webhook: one(webhooks, {
+    fields: [webhookDeliveries.webhookId],
+    references: [webhooks.id],
+  }),
+  attempts: many(webhookDeliveryAttempts),
+}));
+
+export const webhookDeliveryAttemptsRelations = relations(webhookDeliveryAttempts, ({ one }) => ({
+  delivery: one(webhookDeliveries, {
+    fields: [webhookDeliveryAttempts.deliveryId],
+    references: [webhookDeliveries.id],
+  }),
 }));
 
 export const webhookLogsRelations = relations(webhookLogs, ({ one }) => ({
@@ -568,13 +648,18 @@ export const webhookLogsRelations = relations(webhookLogs, ({ one }) => ({
     fields: [webhookLogs.tenantId],
     references: [tenants.id],
   }),
+  webhook: one(webhooks, {
+    fields: [webhookLogs.webhookId],
+    references: [webhooks.id],
+  }),
 }));
 
-export const apiKeysRelations = relations(apiKeys, ({ one }) => ({
+export const apiKeysRelations = relations(apiKeys, ({ one, many }) => ({
   tenant: one(tenants, {
     fields: [apiKeys.tenantId],
     references: [tenants.id],
   }),
+  webhooks: many(webhooks),
 }));
 
 export const contactsRelations = relations(contacts, ({ one, many }) => ({

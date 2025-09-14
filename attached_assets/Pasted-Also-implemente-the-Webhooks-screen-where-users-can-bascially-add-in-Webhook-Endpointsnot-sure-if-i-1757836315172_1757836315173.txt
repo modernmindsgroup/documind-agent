@@ -1,0 +1,77 @@
+Also implemente the Webhooks screen, where users can bascially add in Webhook Endpointsnot sure if it makes sense to have an option So I have attached samples but I think there webhooks tables hould have api_key_id, or agent_id since am thinking there are two places where webhooks could be set, at a global scope from the sidebar Webhooks menu, and also on the Agents Screen we should have a Webhooks tab. So this means, if its sent at agents level we use that, remember am thiking at agent level one can add multiple webhooks setup basically different endpoints can be setup, So global scope is more like Webhook that works from any agent Webhook Delivery Strategy
+
+Queueing
+Don’t fire webhooks synchronously.
+
+Push events into a queue (e.g. Redis, RabbitMQ, SQS, or a DB-backed job table).
+
+A worker process handles delivery → avoids blocking user-facing actions.
+
+Retry Policy
+Use exponential backoff with jitter to avoid hammering a failing endpoint.
+
+Example retry schedule:
+
+1st attempt → immediately
+
+2nd attempt → +30s
+
+3rd attempt → +2min
+
+4th attempt → +10min
+
+5th attempt → +1hr
+
+6th attempt → +6hrs
+
+7th attempt → +24hrs
+
+After N attempts (say 7–10), mark the webhook as permanently failed.
+
+Logging Table
+Add a webhook_deliveries table to track each attempt:
+
+webhook_deliveries (
+id BIGINT PRIMARY KEY,
+webhook_id BIGINT NOT NULL,
+event_id BIGINT NOT NULL, -- reference to original event
+status VARCHAR(20), -- 'pending', 'success', 'failed'
+attempt INT DEFAULT 1,
+response_code INT NULL,
+response_body TEXT NULL,
+error_message TEXT NULL,
+created_at TIMESTAMP,
+updated_at TIMESTAMP
+)
+
+status: Helps you show delivery state in UI.
+
+response_code / response_body: Useful for debugging.
+
+error_message: Store transport errors (timeouts, DNS failure, etc.).
+
+UI/UX for Users
+On the Webhooks screen:
+
+Show Delivery Logs per webhook:
+
+Last 10 attempts
+
+Response codes
+
+Status badge (✅ Success / ⚠️ Failed / ⏳ Pending)
+
+Let users replay a failed event manually (requeue).
+
+Optional: Provide “disable webhook on repeated failure” setting.
+
+
+Best Practices
+Timeout: set ~5s for delivery requests (don’t block workers forever).
+
+Parallelism: deliver in parallel if a webhook has multiple endpoints.
+
+Deduplication: store event_id so you don’t deliver duplicates if retried by mistake.
+
+
+
