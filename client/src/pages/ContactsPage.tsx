@@ -24,6 +24,7 @@ import {
   Activity
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { CreateContactModal } from '@/components/CreateContactModal';
 
 interface Contact {
   id: string;
@@ -52,6 +53,7 @@ export default function ContactsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const { toast } = useToast();
 
   // Fetch contacts data - build query params for the API
@@ -119,7 +121,7 @@ export default function ContactsPage() {
             Manage and view your registered contacts
           </p>
         </div>
-        <Button data-testid="button-add-contact">
+        <Button onClick={() => setIsCreateModalOpen(true)} data-testid="button-add-contact">
           <Users className="h-4 w-4 mr-2" />
           Add Contact
         </Button>
@@ -351,6 +353,11 @@ export default function ContactsPage() {
           )}
         </CardContent>
       </Card>
+      
+      <CreateContactModal
+        open={isCreateModalOpen}
+        onOpenChange={setIsCreateModalOpen}
+      />
     </div>
   );
 }
