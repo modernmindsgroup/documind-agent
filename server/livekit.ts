@@ -1,59 +1,61 @@
-import { RoomServiceClient, Room } from 'livekit-server-sdk';
+import { MediaProviderFactory } from './media/MediaProviderFactory.js';
+import { Room, Participant, CreateRoomOptions, TokenOptions, UpdateParticipantOptions } from './media/MediaProvider.js';
 
-// Get LiveKit credentials from environment variables
-const LIVEKIT_HOST = process.env.LIVEKIT_HOST || 'wss://your-livekit-server.com';
-const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY || 'default-api-key';
-const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'default-secret';
-
-// Initialize RoomServiceClient
-export const roomService = new RoomServiceClient(LIVEKIT_HOST, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
-
-export interface LiveKitRoomOptions {
-  name: string;
-  emptyTimeout?: number;
-  maxParticipants?: number;
-  metadata?: string;
-}
-
-export class LiveKitService {
-  /**
-   * Create a new LiveKit room
-   */
-  async createRoom(options: LiveKitRoomOptions): Promise<Room> {
-    const roomOptions = {
-      name: options.name,
-      emptyTimeout: options.emptyTimeout || 10 * 60, // 10 minutes default
-      maxParticipants: options.maxParticipants || 20,
-      metadata: options.metadata,
-    };
-
-    return await roomService.createRoom(roomOptions);
+export class MediaService {
+  private getProvider() {
+    return MediaProviderFactory.getProvider();
   }
 
-  /**
-   * List all rooms
-   */
+  // Room Management
+  async createRoom(options: CreateRoomOptions): Promise<Room> {
+    return await this.getProvider().createRoom(options);
+  }
+
   async listRooms(): Promise<Room[]> {
-    return await roomService.listRooms();
+    return await this.getProvider().listRooms();
   }
 
-  /**
-   * Delete a room (disconnects all participants)
-   */
+  async getRoom(roomName: string): Promise<Room | null> {
+    return await this.getProvider().getRoom(roomName);
+  }
+
   async deleteRoom(roomName: string): Promise<void> {
-    await roomService.deleteRoom(roomName);
+    await this.getProvider().deleteRoom(roomName);
   }
 
-  /**
-   * Get room info
-   */
-  async getRoom(roomName: string): Promise<Room | undefined> {
+  // Participant Management
+  async listParticipants(roomName: string): Promise<Participant[]> {
+    return await this.getProvider().listParticipants(roomName);
+  }
+
+  async getParticipant(roomName: string, identity: string): Promise<Participant | null> {
+    return await this.getProvider().getParticipant(roomName, identity);
+  }
+
+  async removeParticipant(roomName: string, identity: string): Promise<void> {
+    await this.getProvider().removeParticipant(roomName, identity);
+  }
+
+  async updateParticipant(roomName: string, identity: string, options: UpdateParticipantOptions): Promise<Participant> {
+    return await this.getProvider().updateParticipant(roomName, identity, options);
+  }
+
+  // Track Management
+  async muteParticipantTrack(roomName: string, identity: string, trackSid: string, muted: boolean): Promise<void> {
+    await this.getProvider().muteParticipantTrack(roomName, identity, trackSid, muted);
+  }
+
+  // Token Generation
+  async generateToken(options: TokenOptions): Promise<string> {
+    return await this.getProvider().generateToken(options);
+  }
+
+  // Utility
+  async isHealthy(): Promise<boolean> {
     try {
-      const rooms = await roomService.listRooms();
-      return rooms.find(room => room.name === roomName);
-    } catch (error) {
-      console.error('Error getting room:', error);
-      return undefined;
+      return await this.getProvider().isHealthy();
+    } catch {
+      return false;
     }
   }
 
@@ -65,4 +67,4 @@ export class LiveKitService {
   }
 }
 
-export const liveKitService = new LiveKitService();
+export const mediaService = new MediaService();

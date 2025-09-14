@@ -225,7 +225,7 @@ function RoomsPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Rooms</h1>
           <p className="text-muted-foreground">
-            Manage your LiveKit rooms for real-time voice and video communication
+            Create and manage communication rooms for real-time voice and video calls
           </p>
         </div>
         <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-room">
@@ -324,7 +324,7 @@ function RoomsPage() {
             <Video className="h-16 w-16 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No rooms found</h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-sm">
-              Get started by creating your first room for real-time communication with AI agents.
+              Get started by creating your first communication room for real-time voice and video calls.
             </p>
             <Button onClick={() => setIsCreateDialogOpen(true)} data-testid="button-create-first-room">
               <Plus className="h-4 w-4 mr-2" />

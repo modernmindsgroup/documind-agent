@@ -1,0 +1,53 @@
+Since we will be using LiveKits Ecosystem, behind the scenes for calls etc but we went tenants to basically utilize our platform for things like adding rooms, participant management, and token generation. Can we have endpoints for these core functionalities in livekit, please note that in future I may decide to move from Livekit to another provide so in my .env I have added ACTIVE_MEDIA_PROVIDER to be livekit, so you need to think with flexibility in mind : Managing rooms
+Create, list, and delete Rooms from your backend server.
+
+Copy page
+See more page options
+Initialize RoomServiceClient
+Room management is done with a RoomServiceClient, created like so:
+
+GoPythonNode.js
+import { Room, RoomServiceClient } from 'livekit-server-sdk';
+
+const livekitHost = 'https://my.livekit.host';
+const roomService = new RoomServiceClient(livekitHost, 'api-key', 'secret-key');
+
+Create a room
+GoPythonNode.jsLiveKit CLI
+const opts = {
+name: 'myroom',
+emptyTimeout: 10 * 60, // 10 minutes
+maxParticipants: 20,
+};
+roomService.createRoom(opts).then((room: Room) => {
+console.log('room created', room);
+});
+
+List rooms
+GoPythonNode.jsLiveKit CLI
+roomService.listRooms().then((rooms: Room[]) => {
+console.log('existing rooms', rooms);
+});
+
+Delete a room
+Deleting a room causes all Participants to be disconnected.
+
+GoPythonNode.jsLiveKit CLI
+// Delete a room
+roomService.deleteRoom('myroom').then(() => {
+console.log('room deleted');
+});
+
+On this page
+
+Initialize RoomServiceClient
+Create a room
+List rooms
+Delete a room
+Was this page helpful?
+
+Previous
+
+ESSENTIALLY FOR OUR VERSION 1, for calls we will not host the call ifrastructure we will utilize a different provider but we have to have this in mind in future it will be our call infrastructure or a different provider. So no tight-coupling to any specific provider
+
+So for example for the rooms functionality, the reason I wanted it to though our platform is because in future we can utilize our own infra and this is jsut readines
